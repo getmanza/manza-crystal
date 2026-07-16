@@ -1,0 +1,50 @@
+name: Release
+
+# Tag-driven release. Crystal shards have no central registry — consumers
+# install straight from git tags, so "publishing" is: green specs + a
+# version tag (matching shard.yml) + a GitHub release.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: crystal-lang/install-crystal@v1
+      - name: Fetch cassettes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/fetch-cassettes.sh
+      - run: crystal tool format --check
+      - run: crystal spec
+
+  github-release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify tag matches shard version
+        run: |
+          SHARD_VERSION=$(grep '^version:' shard.yml | awk '{print $2}')
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          if [[ "$TAG_VERSION" != "$SHARD_VERSION" ]]; then
+            echo "Tag v$TAG_VERSION does not match shard.yml version $SHARD_VERSION" >&2
+            exit 1
+          fi
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" --title "$tag" \
+            --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."
