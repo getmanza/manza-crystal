@@ -20,7 +20,7 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
 fi
 
 if [[ -z "$TAG" ]]; then
-  TAG=$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/$REPO/releases/latest" |
+  TAG=$(curl -fsSL --retry 8 --retry-all-errors --retry-delay 10 "${AUTH[@]}" "https://api.github.com/repos/$REPO/releases/latest" |
     python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
 fi
 
@@ -29,7 +29,7 @@ echo "Fetching cassettes from $URL"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL "${AUTH[@]}" -H "Accept: application/octet-stream" -o "$TMP/cassettes.tar.gz" "$URL"
+curl -fsSL --retry 8 --retry-all-errors --retry-delay 10 "${AUTH[@]}" -H "Accept: application/octet-stream" -o "$TMP/cassettes.tar.gz" "$URL"
 
 mkdir -p "$DEST"
 tar -xzf "$TMP/cassettes.tar.gz" -C "$(dirname "$DEST")"
