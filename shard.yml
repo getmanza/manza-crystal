@@ -1,0 +1,12 @@
+name: zazu
+version: 0.1.0
+
+description: |
+  Crystal SDK for the Zazu API.
+
+authors:
+  - Zazu
+
+crystal: ">= 1.10.0"
+
+license: MIT
