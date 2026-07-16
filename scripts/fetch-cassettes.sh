@@ -20,8 +20,12 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
 fi
 
 if [[ -z "$TAG" ]]; then
-  TAG=$(curl -fsSL --retry 8 --retry-all-errors --retry-delay 10 "${AUTH[@]}" "https://api.github.com/repos/$REPO/releases/latest" |
-    python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+  # Resolve the latest release tag over the git transport rather than
+  # api.github.com — the REST API's 503 storms have failed release runs,
+  # while the git endpoints ride separate infrastructure.
+  TAG=$(git ls-remote --tags --refs "https://github.com/$REPO.git" 'v*' |
+    awk -F/ '{print $NF}' | sort -V | tail -1)
+  [[ -n "$TAG" ]] || { echo "Could not resolve latest tag for $REPO" >&2; exit 1; }
 fi
 
 URL="https://github.com/$REPO/releases/download/$TAG/cassettes-$TAG.tar.gz"
