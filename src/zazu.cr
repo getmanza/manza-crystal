@@ -25,5 +25,5 @@ require "./zazu/client"
 
 module Zazu
   # The SDK version, sent in the User-Agent header.
-  VERSION = "0.1.0"
+  VERSION = "0.2.1"
 end
