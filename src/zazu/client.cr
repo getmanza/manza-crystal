@@ -6,7 +6,7 @@ module Zazu
   # page = client.accounts.list
   # ```
   class Client
-    DEFAULT_BASE_URL = "https://zazu.ma"
+    DEFAULT_BASE_URL = "https://ma.manza.finance"
     DEFAULT_TIMEOUT  = 30.seconds
 
     @api_key : String
@@ -20,13 +20,15 @@ module Zazu
     getter customers : Resources::Customers { Resources::Customers.new(self) }
     getter entity : Resources::Entity { Resources::Entity.new(self) }
     getter invoices : Resources::Invoices { Resources::Invoices.new(self) }
+    getter payee_trust_requests : Resources::PayeeTrustRequests { Resources::PayeeTrustRequests.new(self) }
     getter payment_links : Resources::PaymentLinks { Resources::PaymentLinks.new(self) }
     getter transfer_drafts : Resources::TransferDrafts { Resources::TransferDrafts.new(self) }
     getter webhook_endpoints : Resources::WebhookEndpoints { Resources::WebhookEndpoints.new(self) }
 
     # Builds a client. An API key is required — pass `api_key` or set
     # ZAZU_API_KEY. `base_url` defaults to ZAZU_BASE_URL or
-    # https://zazu.ma; `api_version` pins the Zazu-Version request
+    # https://ma.manza.finance (Morocco; South Africa is
+    # https://za.manza.finance); `api_version` pins the Zazu-Version request
     # header (default: ZAZU_API_VERSION).
     def initialize(api_key : String? = nil, base_url : String? = nil,
                    api_version : String? = nil, timeout : Time::Span = DEFAULT_TIMEOUT)

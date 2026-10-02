@@ -17,6 +17,9 @@ module Zazu
       end
 
       # POST /api/payment_links
+      #
+      # Optional billing keys: collect_billing_address, billing_address.
+      # Responses carry `settled_at`; status includes `clearing`.
       def create(**attributes) : Response
         http_post("api/payment_links", body: attributes.to_json)
       end

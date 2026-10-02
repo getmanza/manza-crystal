@@ -2,12 +2,13 @@ require "spec"
 require "../src/zazu"
 require "./support/fixture_ids"
 require "./support/replay_server"
+require "./support/stub_server"
 
 # Starts a replay server for the given cassettes, yields a client
 # pointed at it, and fails loudly (via `ReplayServer#close`) when any
 # request went unmatched.
-def with_replay(*names : String, & : Zazu::Client ->)
-  server = ReplayServer.new(names.to_a)
+def with_replay(*names : String, ignore_signature : Bool = false, & : Zazu::Client ->)
+  server = ReplayServer.new(names.to_a, ignore_signature)
   client = Zazu::Client.new(api_key: "test-api-key-for-replay", base_url: server.url)
   begin
     yield client
