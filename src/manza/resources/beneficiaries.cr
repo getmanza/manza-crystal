@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Saved transfer recipients. Each beneficiary embeds its bank
     # accounts; the one flagged `default` is used when a transfer names

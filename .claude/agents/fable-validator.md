@@ -21,7 +21,7 @@ The issue (number or text), the acceptance criteria, and the base branch (usuall
    - security: input reaching SQL, shell, file paths, HTML or deserialisation; secrets; authorisation on every new entry point;
    - tests that do not test what their name says, or pass for the wrong reason;
    - what the project's CLAUDE.md or AGENTS.md says a change must do (a changelog bullet, docs, a benchmark, a validator run) and whether it was done.
-   - the published package's contract: its public API and its compatibility with the Zazu API; a break is made only on purpose, named in the changelog and released as a major version.
+   - the published package's contract: its public API and its compatibility with the Manza API; a break is made only on purpose, named in the changelog and released as a major version.
 4. Run what settles a question rather than reasoning about it, when it is cheap: a single spec file, a grep for other callers, `git log -S` for why a line exists. Do not run the whole suite unless the question needs it; say what you ran.
 
 ## What you answer

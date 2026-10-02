@@ -1,11 +1,11 @@
-name: zazu
+name: manza
 version: 0.3.0
 
 description: |
-  Crystal SDK for the Zazu API.
+  Crystal SDK for the Manza API.
 
 authors:
-  - Zazu
+  - Manza <hello@get-manza.com>
 
 crystal: ">= 1.10.0"
 

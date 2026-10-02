@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bin/release adapter: print the current version, or write a new one into every
-# tracked file that carries it (shard.yml and the Zazu::VERSION constant).
+# tracked file that carries it (shard.yml and the Manza::VERSION constant).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,5 +10,5 @@ if [ $# -eq 0 ]; then
 fi
 
 sed -i.bak -E "s/^version: .+$/version: $1/" shard.yml
-sed -i.bak -E "s/^  VERSION = \"[^\"]+\"$/  VERSION = \"$1\"/" src/zazu.cr
-rm -f shard.yml.bak src/zazu.cr.bak
+sed -i.bak -E "s/^  VERSION = \"[^\"]+\"$/  VERSION = \"$1\"/" src/manza.cr
+rm -f shard.yml.bak src/manza.cr.bak

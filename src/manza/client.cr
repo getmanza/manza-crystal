@@ -1,8 +1,8 @@
-module Zazu
+module Manza
   # The SDK entry point. Resources hang off it as getters.
   #
   # ```
-  # client = Zazu::Client.new(api_key: "sk_live_...")
+  # client = Manza::Client.new(api_key: "sk_live_...")
   # page = client.accounts.list
   # ```
   class Client
@@ -26,25 +26,26 @@ module Zazu
     getter webhook_endpoints : Resources::WebhookEndpoints { Resources::WebhookEndpoints.new(self) }
 
     # Builds a client. An API key is required — pass `api_key` or set
-    # ZAZU_API_KEY. `base_url` defaults to ZAZU_BASE_URL or
+    # MANZA_API_KEY. `base_url` defaults to MANZA_BASE_URL or
     # https://ma.manza.finance (Morocco; South Africa is
-    # https://za.manza.finance); `api_version` pins the Zazu-Version request
-    # header (default: ZAZU_API_VERSION).
+    # https://za.manza.finance); `api_version` pins the Manza-Version request
+    # header (default: MANZA_API_VERSION). The pre-1.0 ZAZU_* names still work
+    # but warn once.
     def initialize(api_key : String? = nil, base_url : String? = nil,
                    api_version : String? = nil, timeout : Time::Span = DEFAULT_TIMEOUT)
-      key = api_key || ENV["ZAZU_API_KEY"]?
+      key = api_key || Env.fetch("API_KEY")
       if key.nil? || key.empty?
-        raise ConfigurationError.new("missing API key: pass api_key or set ZAZU_API_KEY")
+        raise ConfigurationError.new("missing API key: pass api_key or set MANZA_API_KEY")
       end
 
       @api_key = key
-      @base_url = (base_url || ENV["ZAZU_BASE_URL"]? || DEFAULT_BASE_URL).rstrip('/')
-      @api_version = api_version || ENV["ZAZU_API_VERSION"]?
+      @base_url = (base_url || Env.fetch("BASE_URL") || DEFAULT_BASE_URL).rstrip('/')
+      @api_version = api_version || Env.fetch("API_VERSION")
       @timeout = timeout
     end
 
     # Performs an HTTP request against the API. Non-2xx responses raise
-    # `Zazu::Error`; transport failures raise `Zazu::ConnectionError`.
+    # `Manza::Error`; transport failures raise `Manza::ConnectionError`.
     # `body` (when non-nil) must already be JSON-encoded.
     def request(method : String, path : String, params : URI::Params? = nil, body : String? = nil) : Response
       target = "/" + path.lstrip('/')
@@ -54,12 +55,12 @@ module Zazu
 
       headers = HTTP::Headers{
         "Authorization" => "Bearer #{@api_key}",
-        "User-Agent"    => "zazu-crystal/#{VERSION}",
+        "User-Agent"    => "manza-crystal/#{VERSION}",
         "Accept"        => "application/json",
       }
       headers["Content-Type"] = "application/json" if body
       if version = @api_version
-        headers["Zazu-Version"] = version
+        headers["Manza-Version"] = version
       end
 
       raw = perform(method, target, headers, body)

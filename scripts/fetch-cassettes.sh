@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
-# Downloads the cassette tarball published by zazu-ruby's release workflow.
+# Downloads the cassette tarball published by manza-ruby's release workflow.
 # CI calls this before running tests so we don't have to commit cassettes
 # into both repos.
 #
-#   scripts/fetch-cassettes.sh            # latest release
-#   scripts/fetch-cassettes.sh v0.2.1     # specific tag
+#   scripts/fetch-cassettes.sh            # the pinned tag (PINNED_TAG below)
+#   scripts/fetch-cassettes.sh v1.0.1     # specific tag
+#   scripts/fetch-cassettes.sh latest     # newest release tag
 #
 # Cassettes land under spec/fixtures/cassettes/.
 set -euo pipefail
 
-REPO="getzazu/zazu-ruby"
+REPO="getmanza/manza-ruby"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$ROOT/spec/fixtures/cassettes"
 
-TAG="${1:-}"
+# Pinned so a new manza-ruby release cannot break every SDK's CI at once.
+# Bump deliberately when the cassette contract changes.
+PINNED_TAG="v1.0.0"
+TAG="${1:-$PINNED_TAG}"
 AUTH=()
 if [[ -n "${GH_TOKEN:-}" ]]; then
   AUTH=(-H "Authorization: Bearer $GH_TOKEN")
 fi
 
-if [[ -z "$TAG" ]]; then
+if [[ "$TAG" == "latest" ]]; then
   # Resolve the latest release tag over the git transport rather than
   # api.github.com — the REST API's 503 storms have failed release runs,
   # while the git endpoints ride separate infrastructure.

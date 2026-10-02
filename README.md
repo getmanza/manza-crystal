@@ -1,18 +1,18 @@
-# zazu-crystal
+# manza-crystal
 
-Crystal SDK for the [Manza](https://ma.manza.finance) (Zazu) API.
+Crystal SDK for the [Manza](https://ma.manza.finance) API.
 
 ```yaml
 # shard.yml
 dependencies:
-  zazu:
-    github: getzazu/zazu-crystal
+  manza:
+    github: getmanza/manza-crystal
 ```
 
 ```crystal
-require "zazu"
+require "manza"
 
-client = Zazu::Client.new # reads ZAZU_API_KEY
+client = Manza::Client.new # reads MANZA_API_KEY
 
 entity = client.entity.get
 
@@ -28,7 +28,7 @@ draft = client.transfer_drafts.create(
   beneficiary_id: beneficiary_id,
   amount: "150.00",
   payment_reference: "INV-000042",
-  client_reference: "po_1042" # unique per entity; a duplicate raises Zazu::ConflictError
+  client_reference: "po_1042" # unique per entity; a duplicate raises Manza::ConflictError
 )
 
 # Save a recipient and its bank account, then ask for the payee to be trusted.
@@ -50,31 +50,31 @@ API key** from the one that created it (the creating key gets 403
 `same_key_forbidden`):
 
 ```crystal
-input = Zazu::TransferAuthorization.signature_input(
+input = Manza::TransferAuthorization.signature_input(
   draft["id"].as_s, nonce, draft["amount"].as_s, draft["currency_code"].as_s,
   draft["account_id"].as_s,
-  Zazu::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
+  Manza::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
   draft["client_reference"].as_s? # optional
 )
-signature = Zazu::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
+signature = Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
-authorizer = Zazu::Client.new(api_key: ENV["ZAZU_AUTHORIZER_API_KEY"])
+authorizer = Manza::Client.new(api_key: ENV["MANZA_AUTHORIZER_API_KEY"])
 authorizer.transfer_drafts.authorize(draft["id"].as_s, authorization_id, signature)
 authorizer.transfer_drafts.decline(draft["id"].as_s, authorization_id, "Not ours") # reason is optional
 ```
 
 `amount` must be the API's decimal string verbatim (e.g. `"2500.0"`).
 `payee_for` takes exactly one of `external_account_id` or
-`destination_account_id`. A blank signature raises `Zazu::ArgumentError`
+`destination_account_id`. A blank signature raises `Manza::ArgumentError`
 locally, because the API counts it as a failed attempt. A wrong
-signature raises `Zazu::Error` (`kind` `validation`, `type`
+signature raises `Manza::Error` (`kind` `validation`, `type`
 `invalid_signature`); five on one challenge send the draft to your
 in-app approvers, and five in a row suspend the authorizer.
 
 ## Response shape
 
 Response bodies are returned as-is from the API — `snake_case` keys as
-`JSON::Any`, no typed models. The same shape ships across every Zazu
+`JSON::Any`, no typed models. The same shape ships across every Manza
 SDK (Ruby, TypeScript, Python, Go, ...) so the cassette contract is
 one-to-one. Optional response keys (`tax_id`, `ice_number`, and
 `delivery_date` on invoices are Morocco-only) are simply absent from the
@@ -85,30 +85,34 @@ SDK change.
 
 ## Pagination
 
-List endpoints return a `Zazu::Page` (`data`, `has_more`, `next_cursor`)
+List endpoints return a `Manza::Page` (`data`, `has_more`, `next_cursor`)
 with a `#next` method that fetches the following page, or `nil` on the
 last one. Page size is capped at 100.
 
 ## Errors
 
-Non-2xx responses raise `Zazu::Error` with `status`, `kind`
+Non-2xx responses raise `Manza::Error` with `status`, `kind`
 (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`,
 `rate_limit`, `server`, `api`), the API's `type`/`message`/`param`, the
 `request_id`, and `retry_after` for 429s. 400 and 422 are both
-`validation`. 409 raises `Zazu::ConflictError` (`kind` `conflict`), which
+`validation`. 409 raises `Manza::ConflictError` (`kind` `conflict`), which
 adds `payment_id` — for a duplicate `client_reference`, the draft that
 already holds it. Transport failures raise
-`Zazu::ConnectionError`; a client misconfiguration (missing API key)
-raises `Zazu::ConfigurationError`.
+`Manza::ConnectionError`; a client misconfiguration (missing API key)
+raises `Manza::ConfigurationError`.
 
 ## Configuration
 
 | Option | Env var | Default |
 |--------|---------|---------|
-| `api_key` | `ZAZU_API_KEY` | required |
-| `base_url` | `ZAZU_BASE_URL` | `https://ma.manza.finance` |
-| `api_version` (Zazu-Version header) | `ZAZU_API_VERSION` | unset |
+| `api_key` | `MANZA_API_KEY` | required |
+| `base_url` | `MANZA_BASE_URL` | `https://ma.manza.finance` |
+| `api_version` (Manza-Version header) | `MANZA_API_VERSION` | unset |
 | `timeout` | — | 30 seconds |
+
+The pre-1.0 `ZAZU_API_KEY`, `ZAZU_BASE_URL` and `ZAZU_API_VERSION` are still
+read when the `MANZA_*` name is unset, with a one-time deprecation warning on
+stderr, for all of 1.x.
 
 Production is `https://ma.manza.finance` (Morocco); for South Africa
 pass `base_url: "https://za.manza.finance"`. The cassettes are recorded
@@ -117,7 +121,7 @@ against staging at `https://ma.manza.dev`.
 ## Tests
 
 Tests replay the canonical cassettes recorded by
-[zazu-ruby](https://github.com/getzazu/zazu-ruby). The cassettes are
+[manza-ruby](https://github.com/getmanza/manza-ruby). The cassettes are
 downloaded from the Ruby SDK's release tarball and served from a
 stdlib `HTTP::Server`. Same interactions, same assertions, every
 language.
@@ -129,11 +133,11 @@ crystal spec
 
 ## The SDK family
 
-- [zazu-ruby](https://github.com/getzazu/zazu-ruby) — reference implementation (records the cassettes)
-- [zazu-ts](https://github.com/getzazu/zazu-ts)
-- [zazu-python](https://github.com/getzazu/zazu-python)
-- [zazu-go](https://github.com/getzazu/zazu-go)
-- [cli](https://github.com/getzazu/cli)
+- [manza-ruby](https://github.com/getmanza/manza-ruby) — reference implementation (records the cassettes)
+- [manza-ts](https://github.com/getmanza/manza-ts)
+- [manza-python](https://github.com/getmanza/manza-python)
+- [manza-go](https://github.com/getmanza/manza-go)
+- [cli](https://github.com/getmanza/cli)
 
 ## Releasing
 
@@ -141,9 +145,9 @@ crystal spec
 bin/release list        # last releases + what patch/minor/major would give
 bin/release --dry-run   # version + changes since the last tag, publishes nothing
 bin/release minor       # or patch (default), major, an explicit 0.3.0; --force re-creates
-# → bumps shard.yml + src/zazu.cr, runs scripts/release-check, pushes main, publishes the GH release
-# → release.yml re-runs the specs and verifies the tag matches shard.yml and Zazu::VERSION
+# → bumps shard.yml + src/manza.cr, runs scripts/release-check, pushes main, publishes the GH release
+# → release.yml re-runs the specs and verifies the tag matches shard.yml and Manza::VERSION
 ```
 
-`bin/release` is the zazu SDK release kit (byte-identical across SDK repos;
+`bin/release` is the manza SDK release kit (byte-identical across SDK repos;
 repo-specific bits live in `scripts/version` and `scripts/release-check`).

@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Accounts and their transactions.
     class Accounts < Base

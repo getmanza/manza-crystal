@@ -121,7 +121,7 @@ CodeRabbit doesn't know:
 - Our snake_case wire format decision — it sometimes suggests camelCasing or typed models.
 - That the SDK is the canonical implementation — sometimes it suggests "improvements" the SDK already handles.
 - The cassette-replay contract — it might suggest mocking that breaks parity with the Ruby SDK.
-- That specs never call a live API — it might suggest hitting staging or recording cassettes here; only zazu-ruby records them.
+- That specs never call a live API — it might suggest hitting staging or recording cassettes here; only manza-ruby records them.
 
 When CodeRabbit suggests something that would violate one of these, push back with a one-line explanation. Don't capitulate to keep the PR quiet.
 

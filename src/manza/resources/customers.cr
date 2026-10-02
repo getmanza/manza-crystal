@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Individuals or businesses the entity invoices.
     class Customers < Base

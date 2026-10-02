@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Webhook endpoint management.
     class WebhookEndpoints < Base

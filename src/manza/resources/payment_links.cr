@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Standalone payment links (not attached to an invoice).
     class PaymentLinks < Base

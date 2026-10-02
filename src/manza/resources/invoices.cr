@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # Invoices and their lifecycle actions.
     class Invoices < Base

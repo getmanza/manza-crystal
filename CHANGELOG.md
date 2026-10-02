@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `zazu-crystal` are documented here.
+All notable changes to `manza-crystal` are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -32,12 +32,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **Renamed zazu to manza.** The shard, require path, namespace and repo all
+  move; see the migration guide below. The version is not bumped here:
+  `bin/release` writes 1.0.0 into `shard.yml` and `Manza::VERSION` at release.
+- Requests send `Manza-Version` (was `Zazu-Version`) and the User-Agent is
+  `manza-crystal/<version>` (was `zazu-crystal/<version>`).
+- The cassette fetch script reads `getmanza/manza-ruby` and is pinned to
+  `v1.0.0`; pass a tag or `latest` to override.
+- Replay harness fixture variables are `MANZA_FIXTURE_*` (dev-only, no
+  fallback).
+
 - Default base URL is now `https://ma.manza.finance` (Morocco production;
   South Africa is `https://za.manza.finance`). Cassettes are recorded
   against `https://ma.manza.dev`.
 - The replay harness can compare a request body with `signature` removed
   (`with_replay(..., ignore_signature: true)`), used by the three
   authorize cassettes, and checks every cassette's recorded host.
+
+### Deprecated
+
+- `ZAZU_API_KEY`, `ZAZU_BASE_URL` and `ZAZU_API_VERSION` still work for all of
+  1.x, but warn once per variable on stderr. Use the `MANZA_*` names.
+
+### Migrating from zazu-crystal
+
+| Before | After |
+|--------|-------|
+| shard `zazu` | shard `manza` |
+| `github: getzazu/zazu-crystal` | `github: getmanza/manza-crystal` |
+| `require "zazu"` | `require "manza"` |
+| `Zazu::Client`, `Zazu::Error`, ... | `Manza::Client`, `Manza::Error`, ... |
+| `ZAZU_API_KEY` | `MANZA_API_KEY` |
+| `ZAZU_BASE_URL` | `MANZA_BASE_URL` |
+| `ZAZU_API_VERSION` | `MANZA_API_VERSION` |
+| `Zazu-Version` header | `Manza-Version` header |
+| User-Agent `zazu-crystal/x` | User-Agent `manza-crystal/x` |
+| `ZAZU_FIXTURE_*` (tests only) | `MANZA_FIXTURE_*` |
+
+Error messages now start with `manza:` instead of `zazu:`.
 
 ## [0.2.1]
 

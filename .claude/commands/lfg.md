@@ -59,7 +59,7 @@ For each logical unit:
 Create a test that demonstrates the expected behavior. Confirm it fails for the right reason:
 
 ```bash
-crystal spec spec/zazu/<file>_spec.cr
+crystal spec spec/manza/<file>_spec.cr
 ```
 
 ### 4.2 Minimum implementation
@@ -68,18 +68,18 @@ Project conventions:
 
 | Use | Instead of |
 |-----|-----------|
-| `Zazu::Client` resources (`client.transfer_drafts.create(...)`) | hand-rolled `HTTP::Client` calls |
+| `Manza::Client` resources (`client.transfer_drafts.create(...)`) | hand-rolled `HTTP::Client` calls |
 | `Resources::Base` helpers (`http_get`/`http_post`/..., `list_page`) | calling `client.request` from a resource |
 | `encode_path("api/x", id)` | interpolating IDs into URL strings |
-| `Zazu::Page` (`#next`, `MAX_PER_PAGE`) | manual cursor loop |
-| `Zazu::Error#kind`, `Zazu::ConflictError#payment_id` | status-code or message matching |
+| `Manza::Page` (`#next`, `MAX_PER_PAGE`) | manual cursor loop |
+| `Manza::Error#kind`, `Manza::ConflictError#payment_id` | status-code or message matching |
 | snake_case `JSON::Any` bodies as-is | auto-camelCasing, typed models |
 | `crystal spec` | other test frameworks |
 | `crystal tool format` | manual formatting |
 | `with_replay("resource/cassette")` from `spec/spec_helper.cr` (one cassette per spec) | `with_stub` for anything a cassette covers, or hand-mocked servers |
-| `fixture_id("ZAZU_FIXTURE_X")` from `spec/support/fixture_ids.cr` | literal IDs in specs |
+| `fixture_id("MANZA_FIXTURE_X")` from `spec/support/fixture_ids.cr` | literal IDs in specs |
 
-**Never call a live Zazu/Manza API** from specs, scripts or this session. Specs replay zazu-ruby's cassettes (`scripts/fetch-cassettes.sh`) only; live staging calls create real transfers and approval requests for the team, and only zazu-ruby records cassettes. A change that needs a new or changed cassette is a zazu-ruby change first: stop and say so.
+**Never call a live Manza API** from specs, scripts or this session. Specs replay manza-ruby's cassettes (`scripts/fetch-cassettes.sh`) only; live staging calls create real transfers and approval requests for the team, and only manza-ruby records cassettes. A change that needs a new or changed cassette is a manza-ruby change first: stop and say so.
 
 ### 4.3 Refactor
 
@@ -155,7 +155,7 @@ git push -u origin $(git branch --show-current)
 
 gh pr create --title "feat(scope): brief description" --body "$(cat <<'EOF'
 ## Summary
-- Key change 1 — uses `Zazu::Page` from the SDK
+- Key change 1 — uses `Manza::Page` from the SDK
 - Key change 2
 
 Closes #<issue_number>

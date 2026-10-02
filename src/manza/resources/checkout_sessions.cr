@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # One-off hosted checkout sessions. No list, update, or delete;
     # sessions are created and inspected by id. Status is one of `open`,

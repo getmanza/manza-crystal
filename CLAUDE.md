@@ -1,103 +1,103 @@
-# zazu-crystal
+# manza-crystal
 
-Crystal SDK for the Zazu (Manza) API. It **replays zazu-ruby's cassettes** in its own spec harness. zazu-ruby is the reference implementation: it records cassettes, ships them as a release tarball, and every other SDK (zazu-ts, zazu-crystal, ...) proves wire-format parity by replaying them.
+Crystal SDK for the Manza API. It **replays manza-ruby's cassettes** in its own spec harness. manza-ruby is the reference implementation: it records cassettes, ships them as a release tarball, and every other SDK (manza-ts, manza-crystal, ...) proves wire-format parity by replaying them.
 
 ## Stack
 
 | Concern | Tool | Notes |
 |---|---|---|
 | Language | Crystal, `crystal: ">= 1.10.0"` | `shard.yml`. CI runs `crystal: latest` (single version, no matrix) |
-| HTTP | stdlib `HTTP::Client` | `src/zazu/client.cr`. No shard dependencies |
+| HTTP | stdlib `HTTP::Client` | `src/manza/client.cr`. No shard dependencies |
 | Test runner | `crystal spec` | `spec/` |
-| Cassette replay (tests) | Stdlib `HTTP::Server` + YAML | `spec/support/replay_server.cr` reads zazu-ruby's VCR YAML. `spec/support/stub_server.cr` is for non-cassette cases |
+| Cassette replay (tests) | Stdlib `HTTP::Server` + YAML | `spec/support/replay_server.cr` reads manza-ruby's VCR YAML. `spec/support/stub_server.cr` is for non-cassette cases |
 | Format | `crystal tool format` | CI runs `--check`. No separate linter or typecheck step: the compiler is the typecheck |
-| Package registry | None | Shards install straight from git tags (`github: getmanza/zazu-crystal`) |
-| Release | `bin/release` | zazu SDK release kit (byte-identical across SDK repos; repo-specific bits in `scripts/version` + `scripts/release-check`). `release.yml` runs specs, gates on tag == version, creates the GitHub release |
+| Package registry | None | Shards install straight from git tags (`github: getmanza/manza-crystal`) |
+| Release | `bin/release` | manza SDK release kit (byte-identical across SDK repos; repo-specific bits in `scripts/version` + `scripts/release-check`). `release.yml` runs specs, gates on tag == version, creates the GitHub release |
 
 ## Public API surface
 
 ```crystal
-require "zazu"
+require "manza"
 
-zazu = Zazu::Client.new(api_key: "sk_live_...") # or ZAZU_API_KEY
+manza = Manza::Client.new(api_key: "sk_live_...") # or MANZA_API_KEY
 
-zazu.entity.get
-zazu.accounts.list(currency_code: "MAD")
-zazu.accounts.list_transactions(account_id)
-zazu.customers.create(name: "Acme")
-zazu.payment_links.cancel(id)
+manza.entity.get
+manza.accounts.list(currency_code: "MAD")
+manza.accounts.list_transactions(account_id)
+manza.customers.create(name: "Acme")
+manza.payment_links.cancel(id)
 
 # Transfers (0.3.0): drafts never execute on their own
-draft = zazu.transfer_drafts.create(account_id: a, beneficiary_id: b, amount: "150.00", client_reference: "po_1042")
-zazu.transfer_drafts.authorize(id, authorization_id, signature) # a different API key than the creator's
-zazu.transfer_drafts.decline(id, authorization_id, "wrong amount")
+draft = manza.transfer_drafts.create(account_id: a, beneficiary_id: b, amount: "150.00", client_reference: "po_1042")
+manza.transfer_drafts.authorize(id, authorization_id, signature) # a different API key than the creator's
+manza.transfer_drafts.decline(id, authorization_id, "wrong amount")
 
 # Beneficiaries, external accounts, payee trust
-zazu.beneficiaries.create(beneficiary_type: "business", company_name: "Acme SARL")
-zazu.beneficiaries.list_external_accounts(beneficiary_id)
-zazu.beneficiaries.create_external_account(beneficiary_id, account_number: "0123456789")
-zazu.payee_trust_requests.create([external_account_id])
+manza.beneficiaries.create(beneficiary_type: "business", company_name: "Acme SARL")
+manza.beneficiaries.list_external_accounts(beneficiary_id)
+manza.beneficiaries.create_external_account(beneficiary_id, account_number: "0123456789")
+manza.payee_trust_requests.create([external_account_id])
 
 # Signer for machine-authorized transfers (pure functions, no HTTP)
-input = Zazu::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference)
-Zazu::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
+input = Manza::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference)
+Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
 begin
-  zazu.transfer_drafts.create(...)
-rescue ex : Zazu::ConflictError
+  manza.transfer_drafts.create(...)
+rescue ex : Manza::ConflictError
   ex.payment_id # the draft that already holds this client_reference
-rescue ex : Zazu::Error
+rescue ex : Manza::Error
   ex.kind # "authentication", "validation", "rate_limit", ...
 end
 ```
 
-- Resources on `Zazu::Client`: `accounts`, `beneficiaries`, `checkout_sessions`, `customers`, `entity`, `invoices`, `payee_trust_requests`, `payment_links`, `transfer_drafts`, `webhook_endpoints`
-- `Zazu::Page` is cursor-based pagination (`data`, `has_more`, `next_cursor`, `#next`), hard cap of 100 per page (`MAX_PER_PAGE`)
-- Error model: one `Zazu::Error` carrying a `kind` (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`, `rate_limit`, `server`, `api`) plus `status`, `type`, `param`, `request_id`, `retry_after`, `body`. Match on `kind`, never on status codes or message text. `Zazu::ConflictError < Zazu::Error` (409) adds `payment_id`. `Zazu::ArgumentError`, `Zazu::ConfigurationError` and `Zazu::ConnectionError` cover local misuse and transport failures
-- Response bodies are `Zazu::Response#body` (`JSON::Any`, snake_case, as-is). **No typed models, no auto-camelCasing.**
+- Resources on `Manza::Client`: `accounts`, `beneficiaries`, `checkout_sessions`, `customers`, `entity`, `invoices`, `payee_trust_requests`, `payment_links`, `transfer_drafts`, `webhook_endpoints`
+- `Manza::Page` is cursor-based pagination (`data`, `has_more`, `next_cursor`, `#next`), hard cap of 100 per page (`MAX_PER_PAGE`)
+- Error model: one `Manza::Error` carrying a `kind` (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`, `rate_limit`, `server`, `api`) plus `status`, `type`, `param`, `request_id`, `retry_after`, `body`. Match on `kind`, never on status codes or message text. `Manza::ConflictError < Manza::Error` (409) adds `payment_id`. `Manza::ArgumentError`, `Manza::ConfigurationError` and `Manza::ConnectionError` cover local misuse and transport failures
+- Response bodies are `Manza::Response#body` (`JSON::Any`, snake_case, as-is). **No typed models, no auto-camelCasing.**
 
 ## How to work in this codebase
 
 1. **Specs come first.** Every change to `src/` ships with a spec. Cassette-replay specs are the contract: they enforce the same wire format across Ruby, TS, Crystal and future SDKs.
-2. **Use the SDK's primitives.** `Zazu::Page`, `Zazu::Error` (match on `kind`), `Resources::Base` helpers (`http_get`/`http_post`/`http_patch`/`http_delete`, `list_page`, `validate_limit!`), `encode_path` for URL construction, `fixture_id()` and `with_replay` in specs. Don't hand-roll `HTTP::Client` calls or interpolate IDs into paths.
+2. **Use the SDK's primitives.** `Manza::Page`, `Manza::Error` (match on `kind`), `Resources::Base` helpers (`http_get`/`http_post`/`http_patch`/`http_delete`, `list_page`, `validate_limit!`), `encode_path` for URL construction, `fixture_id()` and `with_replay` in specs. Don't hand-roll `HTTP::Client` calls or interpolate IDs into paths.
 3. **Snake-case stays.** Request and response bodies are wire format. Don't transform them.
 4. **Format must be clean.** `crystal tool format --check` is gated in CI. Run `crystal tool format` to fix, never work around it.
 
 ## Critical rules
 
-- **Never call a live Zazu/Manza API** from specs, scripts or Claude sessions. Specs replay zazu-ruby's cassettes only. Live staging calls create real transfers and approval requests for the team. Only zazu-ruby records cassettes.
+- **Never call a live Manza API** from specs, scripts or Claude sessions. Specs replay manza-ruby's cassettes only. Live staging calls create real transfers and approval requests for the team. Only manza-ruby records cassettes.
 - **Cassette contract.**
-  - Cassettes come from the newest zazu-ruby `v*` release (`cassettes-vX.Y.Z.tar.gz`) via `scripts/fetch-cassettes.sh` into `spec/fixtures/cassettes/` (gitignored).
+  - Cassettes come from the manza-ruby release pinned in `scripts/fetch-cassettes.sh` (`PINNED_TAG`, currently `v1.0.0`; `cassettes-vX.Y.Z.tar.gz`) via that script into `spec/fixtures/cassettes/` (gitignored).
   - They are recorded against `https://ma.manza.dev`. `ReplayServer` raises if a cassette's host differs.
   - Load one cassette per spec: `transfer_drafts/authorize` vs `authorize_same_key`, and `create` vs `create_duplicate`, share method + URI and the lookup is first-match.
   - The three authorize cassettes use `with_replay(..., ignore_signature: true)`: the body is compared minus `signature`.
   - Every other body is compared semantically: method, path + query (host ignored, query order ignored), and JSON parsed on both sides so key order never matters (byte-for-byte when not JSON).
   - The replay server does not replay recorded response headers, so cassette responses carry no `Content-Length`.
-  - The `FIXTURE_IDS` table in `spec/support/fixture_ids.cr` must stay identical to zazu-ruby's `spec/support/fixture_ids.rb`.
-- **Hosts.** Default `https://ma.manza.finance`, South Africa `https://za.manza.finance`, staging and cassettes `https://ma.manza.dev`. Env var names stay `ZAZU_*` (`ZAZU_API_KEY`, `ZAZU_BASE_URL`, `ZAZU_API_VERSION`) and the namespace stays `Zazu` until the rename plan (zazu-ruby `docs/plans/2026-10-manza-rename.md`).
-- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating zazu-ruby and zazu-ts at minimum. The 10th is the conflict (409).
-- **Signer.** `Zazu::TransferAuthorization` must keep reproducing the two fixed vectors from zazu-ruby's `spec/zazu/transfer_authorization_spec.rb` (see `spec/zazu/transfer_authorization_spec.cr`). Build the signature input from your own record of the draft, never sign the server's `signature_input` blindly.
-- **Release.** `bin/release` is byte-identical across the SDK repos and is never edited in place. Repo-specific logic lives in `scripts/version` (shard.yml + `Zazu::VERSION` in `src/zazu.cr`) and `scripts/release-check` (shards install, fetch cassettes, format check, spec). `release.yml` gates on tag == `shard.yml` version == `Zazu::VERSION`. There is no registry and no publish token: shards install from git tags, "publishing" is the tag plus the GitHub release (`GITHUB_TOKEN`, `contents: write`). Consumers depend on `github: getmanza/zazu-crystal`.
-- **Repo moved from `getzazu` to `getmanza`.** Remotes and URLs must say `getmanza`.
+  - The `FIXTURE_IDS` table in `spec/support/fixture_ids.cr` must stay identical to manza-ruby's `spec/support/fixture_ids.rb`.
+- **Hosts.** Default `https://ma.manza.finance`, South Africa `https://za.manza.finance`, staging and cassettes `https://ma.manza.dev`. Env vars are `MANZA_API_KEY`, `MANZA_BASE_URL`, `MANZA_API_VERSION`; the pre-1.0 `ZAZU_*` names are read as a fallback for all of 1.x and warn once (`Manza::Env`). Version header is `Manza-Version`, User-Agent `manza-crystal/<version>`.
+- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. The 10th is the conflict (409).
+- **Signer.** `Manza::TransferAuthorization` must keep reproducing the two fixed vectors from manza-ruby's `spec/manza/transfer_authorization_spec.rb` (see `spec/manza/transfer_authorization_spec.cr`). Build the signature input from your own record of the draft, never sign the server's `signature_input` blindly.
+- **Release.** `bin/release` is byte-identical across the SDK repos and is never edited in place. Repo-specific logic lives in `scripts/version` (shard.yml + `Manza::VERSION` in `src/manza.cr`) and `scripts/release-check` (shards install, fetch cassettes, format check, spec). `release.yml` gates on tag == `shard.yml` version == `Manza::VERSION`. There is no registry and no publish token: shards install from git tags, "publishing" is the tag plus the GitHub release (`GITHUB_TOKEN`, `contents: write`). Consumers depend on `github: getmanza/manza-crystal`.
+- **Repo renamed `zazu-crystal` -> `manza-crystal` (org `getmanza`).** Remotes and URLs must say `getmanza/manza-crystal`.
 - **CI installs Crystal after `sudo apt-get update -q`.** `crystal-lang/install-crystal` can 404 on a stale apt index; keep that step in `ci.yml` and `release.yml`.
 - **Never escape backticks in PR bodies.** With `<<'EOF'` (single-quoted heredoc) the shell passes everything through verbatim. Typing `` \` `` produces literal `` \` `` in the rendered PR. See "PR descriptions" below.
 
 ## PR descriptions
 
-Write PR description bodies in plain Markdown. **Do not escape backticks** with `` \` `` — GitHub renders `` \` `` literally as a backslash followed by a backtick, producing output like `` \`Zazu::Page\` `` instead of the monospace `Zazu::Page` the reader expects.
+Write PR description bodies in plain Markdown. **Do not escape backticks** with `` \` `` — GitHub renders `` \` `` literally as a backslash followed by a backtick, producing output like `` \`Manza::Page\` `` instead of the monospace `Manza::Page` the reader expects.
 
 The usual cause is writing the description inside a bash heredoc (`gh pr create --body "$(cat <<'EOF' ... EOF)"`) and then reflexively escaping every backtick because of shell-quoting muscle memory. With `<<'EOF'` (single-quoted delimiter) the shell does NOT interpret anything inside the heredoc — backticks, dollars, and backslashes all pass through verbatim. So write them exactly as you want them rendered:
 
 ```bash
-# Good — renders as `Zazu::Page` in monospace
+# Good — renders as `Manza::Page` in monospace
 gh pr create --body "$(cat <<'EOF'
-Uses the `Zazu::Page` helper.
+Uses the `Manza::Page` helper.
 EOF
 )"
 
-# Bad — renders as \`Zazu::Page\` literally in the PR body
+# Bad — renders as \`Manza::Page\` literally in the PR body
 gh pr create --body "$(cat <<'EOF'
-Uses the \`Zazu::Page\` helper.
+Uses the \`Manza::Page\` helper.
 EOF
 )"
 ```
@@ -156,10 +156,10 @@ Exact commands from `.github/workflows/ci.yml`:
 ```bash
 # One-time setup
 shards install                    # no dependencies today; release-check runs it too
-scripts/fetch-cassettes.sh        # newest zazu-ruby release; or scripts/fetch-cassettes.sh v0.3.0
+scripts/fetch-cassettes.sh        # the pinned tag; or scripts/fetch-cassettes.sh v1.0.1, or `latest`
 
 # Daily loop
-crystal spec spec/zazu/resources_spec.cr   # while iterating
+crystal spec spec/manza/resources_spec.cr   # while iterating
 crystal tool format --check                # CI gate (crystal tool format to fix)
 crystal spec                               # full suite
 scripts/release-check                      # shards install + fetch + format check + spec, as bin/release runs it
@@ -168,7 +168,7 @@ scripts/release-check                      # shards install + fetch + format che
 bin/release list        # last releases + what patch/minor/major would give
 bin/release --dry-run   # version + changes since the last tag, publishes nothing
 bin/release minor       # or patch (default), major, an explicit 0.4.0; --force re-creates
-# -> bumps shard.yml + src/zazu.cr, runs scripts/release-check, pushes main, publishes the GH release
+# -> bumps shard.yml + src/manza.cr, runs scripts/release-check, pushes main, publishes the GH release
 # -> release.yml re-runs the specs, verifies tag == version, creates the GitHub release
 ```
 
@@ -190,17 +190,17 @@ These live in `.claude/commands/` and are available in any Claude Code session:
 
 ## Cross-SDK contract
 
-`zazu-ruby` is the reference implementation:
+`manza-ruby` is the reference implementation:
 
 - Records cassettes against `https://ma.manza.dev`
 - Ships them as a release tarball (`cassettes-vX.Y.Z.tar.gz`) on each version
-- All other SDKs (`zazu-ts`, `zazu-crystal`, future `zazu-python`, `zazu-go`, `zazu-php`, `zazu-elixir`, `zazu-rust`) replay these cassettes in their own test harness
+- All other SDKs (`manza-ts`, `manza-crystal`, future `manza-python`, `manza-go`, `manza-php`, `manza-elixir`, `manza-rust`) replay these cassettes in their own test harness
 
-If the contract breaks (e.g., new request shape), it's a coordinated change across at least two repos: zazu-ruby and zazu-ts.
+If the contract breaks (e.g., new request shape), it's a coordinated change across at least two repos: manza-ruby and manza-ts.
 
 ## Repository links
 
-- Ruby SDK (reference): https://github.com/getmanza/zazu-ruby
-- TypeScript SDK: https://github.com/getmanza/zazu-ts
-- This repo: https://github.com/getmanza/zazu-crystal
-- Registry: none. Install via `github: getmanza/zazu-crystal` in `shard.yml`; releases at https://github.com/getmanza/zazu-crystal/releases
+- Ruby SDK (reference): https://github.com/getmanza/manza-ruby
+- TypeScript SDK: https://github.com/getmanza/manza-ts
+- This repo: https://github.com/getmanza/manza-crystal
+- Registry: none. Install via `github: getmanza/manza-crystal` in `shard.yml`; releases at https://github.com/getmanza/manza-crystal/releases
