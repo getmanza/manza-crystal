@@ -15,6 +15,12 @@ module Zazu
       end
 
       # POST /api/customers
+      #
+      # Common keys: customer_type ("individual" | "business"),
+      # person_name, company_name, email, phone, registration_number,
+      # vat_number, billing_address (object with street/city/postal_code/
+      # country/country_code). Morocco only: tax_id, ice_number — these
+      # keys are absent from responses in other markets.
       def create(**attributes) : Response
         http_post("api/customers", body: attributes.to_json)
       end

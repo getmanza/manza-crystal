@@ -11,8 +11,20 @@ require "yaml"
 # must replay the exact request shape.
 #
 # Matching is method + path+query (host ignored) + semantic JSON body
-# (both sides are parsed and compared — key order never matters).
+# (both sides are parsed and compared — key order never matters). The
+# three transfer-authorize cassettes opt into `ignore_signature`: the
+# recorded `signature` is an HMAC over the real nonce under the real
+# authorizer secret (scrubbed to `<SIGNATURE>`), which replay cannot
+# reproduce, so the body is compared with `signature` removed.
+#
+# Load one cassette per test when two share method + URI
+# (`transfer_drafts/authorize` vs `authorize_same_key`, and
+# `create` vs `create_duplicate`): the lookup is first-match.
 class ReplayServer
+  # The host every cassette was recorded against (the replay server
+  # itself binds 127.0.0.1; the host is only checked for drift).
+  RECORDED_HOST = "ma.manza.dev"
+
   CASSETTE_DIR = File.join(__DIR__, "..", "fixtures", "cassettes")
 
   record Interaction,
@@ -28,7 +40,7 @@ class ReplayServer
   @server : HTTP::Server
   @unmatched = [] of String
 
-  def initialize(names : Array(String))
+  def initialize(names : Array(String), @ignore_signature : Bool = false)
     @interactions = names.flat_map { |name| self.class.load_cassette(name) }
     @server = HTTP::Server.new { |context| handle(context) }
     address = @server.bind_tcp("127.0.0.1", 0)
@@ -70,9 +82,14 @@ class ReplayServer
       response = mapping_fetch(node, "response") || raise "interaction without response in #{path}"
       status = mapping_fetch(response, "status") || raise "response without status in #{path}"
 
+      uri = scalar_value(mapping_fetch(request, "uri"))
+      unless URI.parse(uri).host == RECORDED_HOST
+        raise "cassette #{path} was not recorded against #{RECORDED_HOST} (#{uri})"
+      end
+
       Interaction.new(
         method: scalar_value(mapping_fetch(request, "method")),
-        uri: scalar_value(mapping_fetch(request, "uri")),
+        uri: uri,
         request_body: body_string(request),
         status: scalar_value(mapping_fetch(status, "code")).to_i,
         response_body: body_string(response)
@@ -130,7 +147,22 @@ class ReplayServer
     return false unless recorded.path == request.path
     return false unless query_pairs(recorded.query) == query_pairs(request.query)
 
-    json_equal?(interaction.request_body, body)
+    if @ignore_signature
+      json_equal?(without_signature(interaction.request_body), without_signature(body))
+    else
+      json_equal?(interaction.request_body, body)
+    end
+  end
+
+  # Drops the top-level `signature` key from a JSON object body; any
+  # other body is returned untouched.
+  private def without_signature(body : String) : String
+    parsed = JSON.parse(body).as_h?
+    return body unless parsed
+
+    parsed.reject("signature").to_json
+  rescue JSON::ParseException
+    body
   end
 
   private def query_pairs(query : String?) : Array({String, String})

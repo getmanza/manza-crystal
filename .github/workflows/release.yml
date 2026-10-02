@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      # The runner image's apt index goes stale when Ubuntu republishes a
+      # package (libevent 404s); install-crystal installs with --no-upgrade.
+      - run: sudo apt-get update -q
       - uses: crystal-lang/install-crystal@v1
       - name: Fetch cassettes
         env:
