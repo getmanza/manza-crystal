@@ -82,3 +82,16 @@ crystal spec
 - [zazu-python](https://github.com/getzazu/zazu-python)
 - [zazu-go](https://github.com/getzazu/zazu-go)
 - [cli](https://github.com/getzazu/cli)
+
+## Releasing
+
+```bash
+bin/release list        # last releases + what patch/minor/major would give
+bin/release --dry-run   # version + changes since the last tag, publishes nothing
+bin/release minor       # or patch (default), major, an explicit 0.3.0; --force re-creates
+# → bumps shard.yml + src/zazu.cr, runs scripts/release-check, pushes main, publishes the GH release
+# → release.yml re-runs the specs and verifies the tag matches shard.yml and Zazu::VERSION
+```
+
+`bin/release` is the zazu SDK release kit (byte-identical across SDK repos;
+repo-specific bits live in `scripts/version` and `scripts/release-check`).

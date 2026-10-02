@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# bin/release adapter: must pass before the version bump is committed.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+shards install
+scripts/fetch-cassettes.sh   # the replay specs need the zazu-ruby cassette tarball, as in CI
+crystal tool format --check
+crystal spec

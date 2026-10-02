@@ -34,11 +34,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Verify tag matches shard version
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
+          TAG_VERSION="${TAG#v}"
           SHARD_VERSION=$(grep '^version:' shard.yml | awk '{print $2}')
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
           if [[ "$TAG_VERSION" != "$SHARD_VERSION" ]]; then
-            echo "Tag v$TAG_VERSION does not match shard.yml version $SHARD_VERSION" >&2
+            echo "::error::Tag $TAG does not match shard.yml version $SHARD_VERSION" >&2
+            exit 1
+          fi
+          if ! grep -qx "  VERSION = \"$TAG_VERSION\"" src/zazu.cr; then
+            echo "::error::src/zazu.cr does not carry $TAG_VERSION (bin/release writes it via scripts/version)" >&2
             exit 1
           fi
       - name: Create GitHub release

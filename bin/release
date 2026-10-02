@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Cut a release of this SDK. Works out the next version, shows what is about to
+# ship, bumps the version, commits, pushes main and publishes the GitHub Release
+# (vX.Y.Z), which fires .github/workflows/release.yml to publish the package.
+#
+#   bin/release             # patch bump for a bugfix  (0.3.1 -> 0.3.2)
+#   bin/release minor       # 0.3.1 -> 0.4.0
+#   bin/release major       # 0.3.1 -> 1.0.0
+#   bin/release 1.0.0-rc.1  # explicit version (v-prefix optional; a -suffix = prerelease)
+#   bin/release list        # last releases + what each bump would give
+#   bin/release --dry-run   # (-n) show version + changes, publish nothing
+#   bin/release --force     # (-f) re-create an existing tag/release
+#
+# The zazu SDK release kit: the same front door as the zoolutions gems' bin/release
+# (see zazu-ruby), byte-identical in every non-Ruby zazu SDK repo and never edited
+# in place. Everything project-specific lives in two repo scripts:
+#
+#   scripts/version            print the current version
+#   scripts/version X.Y.Z      write X.Y.Z into every tracked file that carries it
+#   scripts/release-check      optional: run before the bump is committed (build,
+#                              lint, tests); a non-zero exit stops the release
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+BUMP="patch"
+DRY_RUN=false
+FORCE=false
+LIST=false
+EXPLICIT=""
+
+for arg in "$@"; do
+  case "$arg" in
+    major|minor|patch) BUMP="$arg" ;;
+    list|--list|-l) LIST=true ;;
+    v[0-9]*|[0-9]*.[0-9]*) EXPLICIT="${arg#v}" ;;
+    --dry-run|-n) DRY_RUN=true ;;
+    --force|-f) FORCE=true ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown argument: $arg (try --help)" >&2; exit 1 ;;
+  esac
+done
+
+[ -x scripts/version ] || { echo "scripts/version is missing or not executable" >&2; exit 1; }
+
+git fetch -q origin main --tags
+
+REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+CURRENT=$(scripts/version)
+[ -n "$CURRENT" ] || { echo "scripts/version printed no version" >&2; exit 1; }
+LAST_TAG=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1)
+
+IFS=. read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
+MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+
+# From a prerelease (1.0.0-rc.1), a bump finalises it when the prerelease already
+# belongs to that level: patch always gives 1.0.0; minor does when the patch is 0;
+# major when minor and patch are 0. Otherwise it moves on as usual.
+PRE=false; [[ "$CURRENT" == *-* ]] && PRE=true
+
+next_version() {
+  case "$1" in
+    major)
+      if $PRE && [ "$MINOR" -eq 0 ] && [ "$PATCH" -eq 0 ]; then echo "${MAJOR}.0.0"; else echo "$((MAJOR + 1)).0.0"; fi ;;
+    minor)
+      if $PRE && [ "$PATCH" -eq 0 ]; then echo "${MAJOR}.${MINOR}.0"; else echo "${MAJOR}.$((MINOR + 1)).0"; fi ;;
+    patch)
+      if $PRE; then echo "${MAJOR}.${MINOR}.${PATCH}"; else echo "${MAJOR}.${MINOR}.$((PATCH + 1))"; fi ;;
+  esac
+}
+
+if $LIST; then
+  echo "$REPO current version: $CURRENT"
+  echo
+  echo "last releases:"
+  git for-each-ref --sort=-v:refname --count=5 \
+    --format='  %(refname:short)  %(creatordate:short)' 'refs/tags/v[0-9]*'
+  echo
+  echo "next version:"
+  printf '  %-6s v%s\n' patch "$(next_version patch)" minor "$(next_version minor)" major "$(next_version major)"
+  exit 0
+fi
+
+if [ -n "$EXPLICIT" ]; then
+  NEXT="$EXPLICIT"; HOW="explicit"
+else
+  NEXT=$(next_version "$BUMP"); HOW="$BUMP"
+fi
+[[ "$NEXT" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "not a semver version: $NEXT" >&2; exit 1; }
+TAG="v$NEXT"
+PRERELEASE=false; [[ "$NEXT" == *-* ]] && PRERELEASE=true
+SHA=$(git rev-parse HEAD)
+REMOTE_SHA=$(git rev-parse origin/main)
+
+echo "repo:     $REPO"
+echo "current:  $CURRENT  (last tag: ${LAST_TAG:-none})"
+echo "release:  $TAG  ($HOW$($PRERELEASE && echo ", prerelease"))"
+echo "target:   $(git branch --show-current) @ ${SHA:0:8}"
+echo
+echo "changes since ${LAST_TAG:-repository start}:"
+git log --oneline --no-decorate "${LAST_TAG:+$LAST_TAG..}HEAD" | sed 's/^/  /'
+echo
+
+if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" != "v$CURRENT" ]; then
+  echo "warning: scripts/version says $CURRENT but the newest tag is $LAST_TAG" >&2
+fi
+
+if $DRY_RUN; then
+  echo "dry run — nothing bumped or published"
+  exit 0
+fi
+
+# The bump is committed and pushed straight to origin main, so start from a
+# clean, up-to-date main — otherwise the push either fails or ships whatever
+# local commits happen to be sitting there.
+[ "$(git branch --show-current)" = "main" ] || { echo "run bin/release from main (on $(git branch --show-current))" >&2; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo "working tree has uncommitted changes; commit or stash first" >&2; exit 1; }
+[ "$SHA" = "$REMOTE_SHA" ] || { echo "local main (${SHA:0:8}) != origin/main (${REMOTE_SHA:0:8}); run: git pull --ff-only origin main" >&2; exit 1; }
+if ! $FORCE && git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+  echo "tag $TAG already exists (pass --force to re-create it)" >&2
+  exit 1
+fi
+
+read -r -p "bump to $NEXT, push main and publish $TAG? [y/N] " answer
+[[ "$answer" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+
+if $FORCE; then
+  gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag 2>/dev/null || true
+  git push -q origin --delete "$TAG" 2>/dev/null || true
+  git tag -d "$TAG" >/dev/null 2>&1 || true
+fi
+
+if [ "$NEXT" != "$CURRENT" ]; then
+  scripts/version "$NEXT"
+  [ "$(scripts/version)" = "$NEXT" ] || { echo "scripts/version $NEXT did not take; nothing committed" >&2; exit 1; }
+fi
+
+if [ -x scripts/release-check ]; then
+  echo "running scripts/release-check…"
+  scripts/release-check
+fi
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  git commit -q -a -m "chore: bump version to $NEXT"
+  git push -q origin main
+  echo "pushed: chore: bump version to $NEXT"
+fi
+
+# Notes start at the newest tag other than this one (a --force re-cut of the
+# newest release must not start its notes at itself).
+NOTES_START=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -vx "$TAG" | head -n1 || true)
+
+# --target creates the tag on GitHub at the bump commit, which fires both the
+# `push: tags` and the `release: published` triggers.
+FLAGS=(--repo "$REPO" --target "$(git rev-parse HEAD)" --title "$TAG" --generate-notes)
+[ -n "$NOTES_START" ] && FLAGS+=(--notes-start-tag "$NOTES_START")
+$PRERELEASE && FLAGS+=(--prerelease)
+gh release create "$TAG" "${FLAGS[@]}"
+
+git fetch -q origin --tags
+echo
+echo "published $TAG — https://github.com/$REPO/actions/workflows/release.yml"
