@@ -149,7 +149,7 @@ The fetch step did not run or the tarball is older than the specs. `scripts/fetc
 
 ### Cassette fetch fails with 404 or 5xx
 
-With `latest` the tag resolves through `git ls-remote`; the tarball through `releases/download/<tag>/cassettes-<tag>.tar.gz` (retried 8 times). A 404 means the pinned manza-ruby tag has no tarball asset (its release does not exist yet, or its workflow is still running or failed): re-run later, or try another tag, `scripts/fetch-cassettes.sh v1.0.1`.
+With `latest` the tag resolves through `git ls-remote`; the tarball through `releases/download/<tag>/cassettes-<tag>.tar.gz` (retried 8 times). A 404 means the selected manza-ruby tag has no tarball asset (its release does not exist yet, or its workflow is still running or failed): re-run later, or try another tag, `scripts/fetch-cassettes.sh v1.0.1`.
 
 ### Release: "Tag ... does not match shard.yml version" / "src/manza.cr does not carry ..."
 
