@@ -1,8 +1,8 @@
-module Zazu
+module Manza
   module Resources
     # Requests to trust payees for machine-authorized transfers. The API
     # key can only ask: a member holding payment-authorize permission
-    # approves the request in the Zazu app. Status: pending → approved /
+    # approves the request in the Manza app. Status: pending → approved /
     # declined / cancelled. There is no list, update, or delete.
     class PayeeTrustRequests < Base
       # POST /api/payee_trust_requests

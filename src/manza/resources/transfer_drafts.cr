@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # API-initiated transfers. Creating a draft never executes a
     # transfer by itself. A draft inside the entity's machine-
@@ -17,7 +17,7 @@ module Zazu
       # (external transfer) or destination_account_id (own-account move).
       # Optional: external_account_id, currency_code, payment_reference,
       # internal_notes, client_reference (unique per entity, at most 128
-      # characters; a duplicate raises `Zazu::ConflictError` whose
+      # characters; a duplicate raises `Manza::ConflictError` whose
       # `payment_id` names the existing draft).
       def create(**attributes) : Response
         http_post("api/transfer_drafts", body: attributes.to_json)
@@ -32,13 +32,13 @@ module Zazu
       #
       # Executes the draft. `authorization_id` comes from the
       # `payment.authorization_requested` webhook; build `signature` with
-      # `Zazu::TransferAuthorization`. Requires the `transfers:authorize`
+      # `Manza::TransferAuthorization`. Requires the `transfers:authorize`
       # scope on a key other than the draft's creator (otherwise 403
       # `same_key_forbidden`). A blank signature raises
-      # `Zazu::ArgumentError` locally: the API counts it as a failed
+      # `Manza::ArgumentError` locally: the API counts it as a failed
       # attempt, and five fail the challenge.
       def authorize(id : String, authorization_id : String, signature : String) : Response
-        raise Zazu::ArgumentError.new("signature cannot be blank") if signature.blank?
+        raise Manza::ArgumentError.new("signature cannot be blank") if signature.blank?
 
         body = {authorization_id: authorization_id, signature: signature}
         http_post(encode_path("api/transfer_drafts", id, "authorize"), body: body.to_json)

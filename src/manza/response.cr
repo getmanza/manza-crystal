@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   # A successful (2xx) API response.
   class Response
     # HTTP status code.

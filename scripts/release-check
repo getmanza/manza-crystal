@@ -4,6 +4,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 shards install
-scripts/fetch-cassettes.sh   # the replay specs need the zazu-ruby cassette tarball, as in CI
+scripts/fetch-cassettes.sh   # the replay specs need the manza-ruby cassette tarball, as in CI
 crystal tool format --check
 crystal spec

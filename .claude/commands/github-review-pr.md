@@ -28,7 +28,7 @@ For each failing check:
 
 1. `gh run view <run-id> --log-failed` — get the actual error
 2. Reproduce locally:
-   - Test or compile failure → `crystal spec spec/zazu/<file>_spec.cr` (the compiler is the typecheck)
+   - Test or compile failure → `crystal spec spec/manza/<file>_spec.cr` (the compiler is the typecheck)
    - Format failure → `crystal tool format --check` (fix with `crystal tool format`)
    - Missing cassette → `scripts/fetch-cassettes.sh`
 3. Fix the root cause. Don't:

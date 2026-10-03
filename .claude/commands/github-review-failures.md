@@ -30,7 +30,7 @@ Categorize:
 - **Compile failures** — `crystal spec` fails to build (the compiler is the typecheck)
 - **Format failures** — `crystal tool format --check` reports files
 - **Toolchain install failures** — `crystal-lang/install-crystal` 404 on a stale apt index
-- **Cassette fetch failures** — `scripts/fetch-cassettes.sh` could not resolve or download the zazu-ruby tarball
+- **Cassette fetch failures** — `scripts/fetch-cassettes.sh` could not resolve or download the manza-ruby tarball
 - **Release failures** — `release.yml` tag/version gate, or `gh release create`
 
 ## Phase 2: Diagnose
@@ -43,7 +43,7 @@ For each failure:
 
 ```bash
 # Spec
-crystal spec spec/zazu/<file>_spec.cr
+crystal spec spec/manza/<file>_spec.cr
 
 # Format
 crystal tool format --check
@@ -69,8 +69,8 @@ Apply the five-whys ladder until you reach a fix point that prevents the same cl
 - Disable the failing test
 - Skip or weaken the format check
 - Cast away a compile error with `.as(...)` / `.not_nil!`
-- Edit a cassette or the replay matcher to make a spec pass (cassettes come from zazu-ruby)
-- Call a live Zazu/Manza API to "check" a failure
+- Edit a cassette or the replay matcher to make a spec pass (cassettes come from manza-ruby)
+- Call a live Manza API to "check" a failure
 
 These hide the failure; the underlying bug returns elsewhere.
 
@@ -90,7 +90,7 @@ The CI step that failed has a local equivalent — run it, get green:
 | `scripts/fetch-cassettes.sh` | `scripts/fetch-cassettes.sh` |
 | `crystal tool format --check` | `crystal tool format --check` |
 | `crystal spec` | `crystal spec` |
-| Release gate (tag == `shard.yml` == `Zazu::VERSION`) | `scripts/version` prints the version; `bin/release --dry-run` |
+| Release gate (tag == `shard.yml` == `Manza::VERSION`) | `scripts/version` prints the version; `bin/release --dry-run` |
 
 ### 3.3 Run the full pipeline
 
@@ -141,19 +141,19 @@ The runner image's apt index is stale after Ubuntu republished a package, and `i
 
 The recorded request shape drifted from what the SDK now sends, or two cassettes sharing method + URI were loaded in one spec (`authorize` vs `authorize_same_key`, `create` vs `create_duplicate`: load one per spec). Either:
 - Fix the SDK's request to match the cassette (the cassette is the contract)
-- If the wire format really changed, record new cassettes in zazu-ruby and ship a new release; never record or edit them here
+- If the wire format really changed, record new cassettes in manza-ruby and ship a new release; never record or edit them here
 
 ### `missing cassette ... (run scripts/fetch-cassettes.sh first)`
 
-The fetch step did not run or the tarball is older than the specs. `scripts/fetch-cassettes.sh` takes the newest zazu-ruby `v*` tag; a spec that needs a newer cassette waits on that zazu-ruby release.
+The fetch step did not run or the tarball is older than the specs. `scripts/fetch-cassettes.sh` takes the tag pinned in `PINNED_TAG` (v1.0.0); a spec that needs a newer cassette waits on a manza-ruby release plus a deliberate pin bump.
 
 ### Cassette fetch fails with 404 or 5xx
 
-The tag resolves through `git ls-remote`, the tarball through `releases/download/<tag>/cassettes-<tag>.tar.gz` (retried 8 times). A 404 means the newest zazu-ruby tag has no tarball asset yet (its release workflow is still running or failed): re-run later or pin a tag, `scripts/fetch-cassettes.sh v0.3.0`.
+With `latest` the tag resolves through `git ls-remote`; the tarball through `releases/download/<tag>/cassettes-<tag>.tar.gz` (retried 8 times). A 404 means the selected manza-ruby tag has no tarball asset (its release does not exist yet, or its workflow is still running or failed): re-run later, or try another tag, `scripts/fetch-cassettes.sh v1.0.1`.
 
-### Release: "Tag ... does not match shard.yml version" / "src/zazu.cr does not carry ..."
+### Release: "Tag ... does not match shard.yml version" / "src/manza.cr does not carry ..."
 
-The tag was pushed by hand or `scripts/version` drifted. Releases go through `bin/release`, which writes both `shard.yml` and `Zazu::VERSION` via `scripts/version`. Don't edit `bin/release` in place.
+The tag was pushed by hand or `scripts/version` drifted. Releases go through `bin/release`, which writes both `shard.yml` and `Manza::VERSION` via `scripts/version`. Don't edit `bin/release` in place.
 
 ## Karpathy guidelines
 

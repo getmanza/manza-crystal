@@ -1,8 +1,8 @@
-module Zazu
+module Manza
   module Resources
     # Shared scaffolding for every resource. Carries a back-reference
     # to the client and exposes thin HTTP helpers that delegate to
-    # `Zazu::Client#request`.
+    # `Manza::Client#request`.
     #
     # The helpers are `http_get`, `http_post`, etc. rather than
     # `get`/`post` so they do not shadow the public methods on resource
@@ -57,10 +57,10 @@ module Zazu
 
       private def validate_limit!(limit : Int32) : Int32
         unless limit.positive?
-          raise Zazu::ArgumentError.new("limit must be a positive integer (got #{limit})")
+          raise Manza::ArgumentError.new("limit must be a positive integer (got #{limit})")
         end
         if limit > MAX_PER_PAGE
-          raise Zazu::ArgumentError.new("limit cannot exceed #{MAX_PER_PAGE} (got #{limit})")
+          raise Manza::ArgumentError.new("limit cannot exceed #{MAX_PER_PAGE} (got #{limit})")
         end
 
         limit
@@ -76,7 +76,7 @@ module Zazu
           # An empty segment would silently turn `/things/:id` into
           # `/things/`, which on most APIs redispatches to the list
           # endpoint. Surface it loudly.
-          raise Zazu::ArgumentError.new("path segment cannot be blank") if str.empty?
+          raise Manza::ArgumentError.new("path segment cannot be blank") if str.empty?
 
           URI.encode_path_segment(str)
         end

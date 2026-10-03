@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   # One page of a cursor-paginated list endpoint:
   # `{ "data": [...], "has_more": bool, "next_cursor": string|null }`.
   class Page

@@ -1,6 +1,6 @@
 require "openssl/hmac"
 
-module Zazu
+module Manza
   # Signs a machine-authorization challenge for an API-created transfer
   # draft. Pure functions — no HTTP.
   #
@@ -12,13 +12,13 @@ module Zazu
   # `Resources::TransferDrafts#authorize`:
   #
   # ```
-  # input = Zazu::TransferAuthorization.signature_input(
+  # input = Manza::TransferAuthorization.signature_input(
   #   draft["id"].as_s, nonce, draft["amount"].as_s, draft["currency_code"].as_s,
   #   draft["account_id"].as_s,
-  #   Zazu::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
+  #   Manza::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
   #   draft["client_reference"].as_s?
   # )
-  # signature = Zazu::TransferAuthorization.sign(signing_secret, input)
+  # signature = Manza::TransferAuthorization.sign(signing_secret, input)
   # authorizer.transfer_drafts.authorize(draft["id"].as_s, authorization_id, signature)
   # ```
   module TransferAuthorization
@@ -48,7 +48,7 @@ module Zazu
       elsif destination_account_id && external_account_id.nil?
         "own:#{destination_account_id}"
       else
-        raise Zazu::ArgumentError.new("pass exactly one of external_account_id or destination_account_id")
+        raise Manza::ArgumentError.new("pass exactly one of external_account_id or destination_account_id")
       end
     end
   end

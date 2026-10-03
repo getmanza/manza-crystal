@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   module Resources
     # The current entity (the tenant the API key belongs to).
     class Entity < Base

@@ -7,11 +7,13 @@ class StubServer
   getter last_method = ""
   getter last_resource = ""
   getter last_body = ""
+  getter last_headers = HTTP::Headers.new
 
   def initialize(@status : Int32, @response_body : String = "{}")
     @server = HTTP::Server.new do |context|
       @last_method = context.request.method
       @last_resource = context.request.resource
+      @last_headers = context.request.headers
       @last_body = context.request.body.try(&.gets_to_end) || ""
       context.response.status_code = @status
       context.response.content_type = "application/json"
@@ -22,8 +24,12 @@ class StubServer
     spawn { server.listen }
   end
 
-  def client : Zazu::Client
-    Zazu::Client.new(api_key: "test", base_url: "http://127.0.0.1:#{@port}")
+  def url : String
+    "http://127.0.0.1:#{@port}"
+  end
+
+  def client : Manza::Client
+    Manza::Client.new(api_key: "test", base_url: url)
   end
 
   def close

@@ -1,4 +1,4 @@
-module Zazu
+module Manza
   # Raised for invalid SDK arguments (e.g. a page limit above the cap).
   class ArgumentError < ::ArgumentError
   end
@@ -11,7 +11,7 @@ module Zazu
   class ConnectionError < Exception
   end
 
-  # The API error envelope, mirroring the other Zazu SDKs' hierarchy:
+  # The API error envelope, mirroring the other Manza SDKs' hierarchy:
   # `{ "error": { "type": ..., "message": ..., "param": ... } }`. Match
   # on `#kind` instead of subclassing.
   class Error < Exception
@@ -69,9 +69,9 @@ module Zazu
 
     def to_s(io : IO) : Nil
       if value = param
-        io << "zazu: " << message << " (" << status << ' ' << kind << ", param " << value << ')'
+        io << "manza: " << message << " (" << status << ' ' << kind << ", param " << value << ')'
       else
-        io << "zazu: " << message << " (" << status << ' ' << kind << ')'
+        io << "manza: " << message << " (" << status << ' ' << kind << ')'
       end
     end
 

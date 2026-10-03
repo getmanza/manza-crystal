@@ -4,7 +4,7 @@ require "json"
 require "uri"
 require "yaml"
 
-# Reads VCR YAML cassettes (recorded by zazu-ruby) and serves them from
+# Reads VCR YAML cassettes (recorded by manza-ruby) and serves them from
 # a stdlib HTTP::Server bound to an ephemeral 127.0.0.1 port, so
 # identical interactions replay against this SDK. The contract is
 # enforced cross-language: every SDK that consumes the cassette tarball
