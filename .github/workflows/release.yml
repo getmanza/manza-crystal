@@ -13,7 +13,9 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # install-crystal v1.9.2 installs libpcre3-dev, which 26.04 dropped; move to
+    # ubuntu-26.04 once v1.9.3 ships (crystal-lang/install-crystal#83).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
@@ -31,7 +33,7 @@ jobs:
 
   github-release:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
