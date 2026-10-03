@@ -133,11 +133,17 @@ crystal spec
 
 ## The SDK family
 
-- [manza-ruby](https://github.com/getmanza/manza-ruby) — reference implementation (records the cassettes)
-- [manza-ts](https://github.com/getmanza/manza-ts)
-- [manza-python](https://github.com/getmanza/manza-python)
-- [manza-go](https://github.com/getmanza/manza-go)
-- [cli](https://github.com/getmanza/cli)
+| SDK | Repository | Install |
+|---|---|---|
+| Ruby (reference implementation, records the cassettes) | [getmanza/manza-ruby](https://github.com/getmanza/manza-ruby) | `gem "manza"` |
+| TypeScript / JavaScript | [getmanza/manza-ts](https://github.com/getmanza/manza-ts) | `npm install @getmanza/sdk` |
+| Python | [getmanza/manza-python](https://github.com/getmanza/manza-python) | `pip install manza` |
+| Go | [getmanza/manza-go](https://github.com/getmanza/manza-go) | `go get github.com/getmanza/manza-go` |
+| PHP | [getmanza/manza-php](https://github.com/getmanza/manza-php) | `composer require manza/manza-php` |
+| Rust | [getmanza/manza-rust](https://github.com/getmanza/manza-rust) | `cargo add manza` |
+| Crystal | [getmanza/manza-crystal](https://github.com/getmanza/manza-crystal) (this repo) | shard `manza` (`github: getmanza/manza-crystal`) |
+| Elixir | [getmanza/manza-elixir](https://github.com/getmanza/manza-elixir) | `{:manza, "~> 1.0"}` |
+| CLI | [getmanza/cli](https://github.com/getmanza/cli) | `npm install -g @getzazu/cli` or `brew install getmanza/tap/zazu` |
 
 ## Releasing
 
