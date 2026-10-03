@@ -5,3 +5,4 @@
 /.shards/
 *.dwarf
 /spec/fixtures/cassettes/
+/shard.lock
