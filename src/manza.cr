@@ -28,5 +28,5 @@ require "./manza/client"
 
 module Manza
   # The SDK version, sent in the User-Agent header.
-  VERSION = "0.3.0"
+  VERSION = "1.0.0"
 end
