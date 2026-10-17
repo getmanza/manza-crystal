@@ -29,7 +29,7 @@ manza.payment_links.cancel(id)
 
 # Transfers (0.3.0): drafts never execute on their own
 draft = manza.transfer_drafts.create(account_id: a, beneficiary_id: b, amount: "150.00", client_reference: "po_1042")
-manza.transfer_drafts.authorize(id, authorization_id, signature) # a different API key than the creator's
+authorizer.transfer_drafts.authorize(id, authorization_id, signature) # `authorizer` is a client with a different API key than the creator's (`manza`)
 manza.transfer_drafts.decline(id, authorization_id, "wrong amount")
 
 # Beneficiaries, external accounts, payee trust
@@ -78,7 +78,7 @@ end
 - **A replay mismatch is fixed in the SDK, never in the cassette.** "no cassette interaction matches" means the request drifted from the recording (or two cassettes sharing method + URI were loaded in one spec). Never edit a cassette or the matcher to pass, and never record here. A spec that needs a newer cassette waits on a manza-ruby release plus a deliberate `PINNED_TAG` bump. A fetch 404 means that tag has no tarball yet: re-run later or try `scripts/fetch-cassettes.sh v1.0.1`.
 - **A public API break is deliberate**: named in the changelog and released as a major.
 - **Never skip or weaken `crystal tool format --check`**, and never hand-edit `bin/release` or push a tag by hand (the `release.yml` gate fails when tag, `shard.yml` and `Manza::VERSION` differ).
-- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. The 10th is the conflict (409).
+- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. `ConflictError` is the 10th error class (409).
 - **Signer.** `Manza::TransferAuthorization` must keep reproducing the two fixed vectors from manza-ruby's `spec/manza/transfer_authorization_spec.rb` (see `spec/manza/transfer_authorization_spec.cr`). Build the signature input from your own record of the draft, never sign the server's `signature_input` blindly.
 - **Release.** `bin/release` is byte-identical across the SDK repos and is never edited in place. Repo-specific logic lives in `scripts/version` (shard.yml + `Manza::VERSION` in `src/manza.cr`) and `scripts/release-check` (shards install, fetch cassettes, format check, spec). `release.yml` gates on tag == `shard.yml` version == `Manza::VERSION`. There is no registry and no publish token: shards install from git tags, "publishing" is the tag plus the GitHub release (`GITHUB_TOKEN`, `contents: write`). Consumers depend on `github: getmanza/manza-crystal`.
 - **Repo renamed `zazu-crystal` -> `manza-crystal` (org `getmanza`).** Remotes and URLs must say `getmanza/manza-crystal`.
@@ -87,7 +87,7 @@ end
 
 ## PR descriptions
 
-Write PR description bodies in plain Markdown. **Do not escape backticks** with `` \` `` — GitHub renders `` \` `` literally as a backslash followed by a backtick, producing output like `` \`Manza::Page\` `` instead of the monospace `Manza::Page` the reader expects.
+Write PR description bodies in plain Markdown. **Do not escape backticks** with `` \` `` — escaping produces literal backticks instead of a monospace code span, so write `Manza::Page` directly.
 
 The usual cause is writing the description inside a bash heredoc (`gh pr create --body "$(cat <<'EOF' ... EOF)"`) and then reflexively escaping every backtick because of shell-quoting muscle memory. With `<<'EOF'` (single-quoted delimiter) the shell does NOT interpret anything inside the heredoc — backticks, dollars, and backslashes all pass through verbatim. So write them exactly as you want them rendered:
 
