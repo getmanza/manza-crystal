@@ -4,6 +4,7 @@ require "./support/env_helpers"
 require "./support/fixture_ids"
 require "./support/replay_server"
 require "./support/stub_server"
+require "./support/route_stub"
 
 # Starts a replay server for the given cassettes, yields a client
 # pointed at it, and fails loudly (via `ReplayServer#close`) when any

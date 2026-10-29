@@ -23,13 +23,14 @@ end
 
 # Initiate a transfer — it lands in your workspace's in-app approval
 # queue; the API never executes a transfer itself.
-draft = client.transfer_drafts.create(
+draft = client.payments.create(
   account_id: account_id,
   beneficiary_id: beneficiary_id,
   amount: "150.00",
   payment_reference: "INV-000042",
   client_reference: "po_1042" # unique per entity; a duplicate raises Manza::ConflictError
 )
+# client.transfer_drafts is a deprecated alias of client.payments (same methods, /api/payments)
 
 # Save a recipient and its bank account, then ask for the payee to be trusted.
 beneficiary = client.beneficiaries.create(beneficiary_type: "business", company_name: "Acme SARL")
@@ -41,29 +42,86 @@ client.payee_trust_requests.create([account.body["id"].as_s])
 
 ## Machine-authorized transfers
 
-A draft inside your entity's authorization envelope (trusted payee,
-within limits) is sent to your enrolled authorizer endpoint as a
-`payment.authorization_requested` webhook carrying an `authorization.id`
-and a one-time `nonce`. Sign the draft from **your own record** of it
-with the endpoint's signing secret, and authorize it with a **different
-API key** from the one that created it (the creating key gets 403
-`same_key_forbidden`):
+A draft inside your entity's authorization envelope (trusted payee, or a
+new one when you allow it, within limits) is sent to your enrolled
+authorizer endpoint as a `payment.authorization_requested` webhook
+carrying an `authorization.id` and a one-time `nonce`. Your system checks
+it against its own ledger, signs it and authorizes it with a **different
+API key** from the one that created it.
+[`examples/transfer_authorizer/`](examples/transfer_authorizer/) runs the
+whole flow. The guide is the
+[transfer authorization docs](https://ma.manza.finance/docs/api/transfer-authorization).
+
+### Setup, step by step
+
+1. **Feature flags.** Ask support to enable API transfers and transfer authorization (`release_api_webhook_authorization`) on your workspace.
+2. **Two API keys.** Key A creates drafts (`transfers:write`; `beneficiaries:request_trust` for step 6; `entity:read`, `accounts:read`, `webhook_endpoints:read` and `beneficiaries:read` for the preflight in step 7). Key B answers the challenges (`transfers:authorize`). The creating key is always refused with 403 `same_key_forbidden`, so keep key B and the signing secret on the system that holds your ledger. Bind key B to an IP allowlist: authorizing from a key without one is refused with 403 `unrestricted_api_key`. Bind key A to one too if you allow new payees (step 6): a draft to a new payee from a key without an allowlist goes to your approvers (`unrestricted_api_key`).
+3. **A stable public URL.** Your authorizer needs an HTTPS URL that never changes: an enrolled endpoint's URL is locked. Use a reserved ngrok domain (`ngrok http --url=your-name.ngrok.app 4599`) or a named Cloudflare tunnel. Never a free ngrok URL: it changes on every restart.
+4. **Create the webhook endpoint** at that URL:
+
+   ```crystal
+   client.webhook_endpoints.create(url: "https://your-name.ngrok.app/", events: ["transfer.executed"])
+   ```
+
+5. **Enrol it in the app**: Settings → Developer → Transfer approval. Pick the endpoint, the currency and both limits, confirm with your two-factor code, and copy the signing secret: it is shown once.
+6. **Allow new payees, or trust each payee.** Turn on *Approve transfers to new payees* at enrolment (or later, same page, with your two-factor code) and set the *Limit per transfer to a new payee*. Your authorizer may then approve a transfer to bank details your workspace never trusted, up to that limit, and its signature trusts them: the webhook's `payment.payee_trusted` is `false` for such a transfer. Bank details whose trust was revoked, or that were edited after trusting, still go to your approvers. Without the option, an approver marks the beneficiary's bank account as trusted from the Beneficiaries list, or you ask them to:
+
+   ```crystal
+   client.payee_trust_requests.create(["01a1..."])
+   ```
+
+   `trusted` on `client.beneficiaries.get_external_account` says which it is. The API does not show whether the option is on.
+7. **Run the preflight, then the example** (from `examples/transfer_authorizer/`, after filling in `.env`): `crystal run preflight.cr` checks what the API shows of steps 1–6 and prints a fix for each that fails. What it cannot see, check by hand: that key B is bound to an IP allowlist, and, for a payee not trusted yet, that *Approve transfers to new payees* is on and key A is bound to an IP allowlist too (it warns, it does not fail). Then `crystal run server.cr` in one terminal, `crystal run create_transfer.cr` in another.
+8. **Troubleshooting**: a draft that goes to your approvers instead has an `authorization` with status `refused` and a `refusal_reason` (`create_transfer.cr` prints it in words); `client.transfer_authorizer.get` shows a suspension and its `suspension_reason`. An authorize answered 409 `authorization_busy` (a bank-detail edit, trust or trust revocation on the same payee was in flight) is safe to retry. The reasons, and an API error's `type`, are in the [transfer authorization docs](https://ma.manza.finance/docs/api/transfer-authorization).
+
+### Verifying the webhook
+
+Pass the **raw request body**, never re-serialized JSON. `construct_event`
+reads `X-Manza-Signature` and `X-Manza-Timestamp` (any case, or the legacy
+`X-Zazu-*` names), checks the signature in constant time and the
+timestamp within 5 minutes, and returns the parsed event (a `JSON::Any`
+object). It raises `Manza::ArgumentError` otherwise:
 
 ```crystal
+server = HTTP::Server.new do |context|
+  body = context.request.body.try(&.gets_to_end) || ""
+  event = begin
+    Manza::Webhook.construct_event(body, context.request.headers, signing_secret)
+  rescue ex : Manza::ArgumentError
+    context.response.status_code = 401
+    next
+  end
+  # event["event"] # => "payment.authorization_requested"
+end
+```
+
+`Manza::Webhook.verify?(payload, signature, timestamp, secret)` returns a
+`Bool` instead. Both accept `tolerance: nil` to skip the timestamp check.
+Use it only to replay a captured delivery in a local tool or test, never
+on a live endpoint: without the check, anyone holding a captured delivery
+can replay it.
+
+### Signing the challenge
+
+Sign the draft from **your own record** of it with the endpoint's
+signing secret:
+
+```crystal
+authorization = event["data"]["authorization"]
 input = Manza::TransferAuthorization.signature_input(
-  draft["id"].as_s, nonce, draft["amount"].as_s, draft["currency_code"].as_s,
-  draft["account_id"].as_s,
+  draft["id"].as_s, authorization["nonce"].as_s,
+  draft["amount"].as_s, # the API's decimal string verbatim, e.g. "2500.0"
+  draft["currency_code"].as_s, draft["account_id"].as_s,
   Manza::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
   draft["client_reference"].as_s? # optional
 )
 signature = Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
 authorizer = Manza::Client.new(api_key: ENV["MANZA_AUTHORIZER_API_KEY"])
-authorizer.transfer_drafts.authorize(draft["id"].as_s, authorization_id, signature)
-authorizer.transfer_drafts.decline(draft["id"].as_s, authorization_id, "Not ours") # reason is optional
+authorizer.payments.authorize(draft["id"].as_s, authorization["id"].as_s, signature)
+authorizer.payments.decline(draft["id"].as_s, authorization["id"].as_s, "Not ours") # reason is optional
 ```
 
-`amount` must be the API's decimal string verbatim (e.g. `"2500.0"`).
 `payee_for` takes exactly one of `external_account_id` or
 `destination_account_id`. A blank signature raises `Manza::ArgumentError`
 locally, because the API counts it as a failed attempt. A wrong
@@ -79,7 +137,8 @@ SDK (Ruby, TypeScript, Python, Go, ...) so the cassette contract is
 one-to-one. Optional response keys (`tax_id`, `ice_number`, and
 `delivery_date` on invoices are Morocco-only) are simply absent from the
 `JSON::Any` outside that market; new fields such as `client_reference`,
-`authorization`, `settled_at`, `transaction` and `billing_address`, and
+`authorization` (with `refusal_reason`), `settled_at`, `transaction`,
+`billing_address`, `trusted` on external accounts, and
 the `clearing` status on checkout sessions and payment links, need no
 SDK change.
 
