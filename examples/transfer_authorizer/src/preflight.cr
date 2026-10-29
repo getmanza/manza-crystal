@@ -145,7 +145,7 @@ module TransferAuthorizer
           "an approver resumes it in the app")
       end
       host = URI.parse(url).host.to_s
-      unstable = UNSTABLE_TUNNEL_HOSTS.find { |domain| host.ends_with?(domain) }
+      unstable = UNSTABLE_TUNNEL_HOSTS.find { |domain| host == domain || host.ends_with?(".#{domain}") }
       return unless unstable
 
       warn_step("webhook endpoint is on #{unstable}, whose URL changes when the tunnel restarts",
@@ -234,8 +234,11 @@ module TransferAuthorizer
       end
     end
 
+    # The exact decimal, padded to two places ("10" -> "10.00"), never
+    # rounded: the line shows the value that was compared.
     private def format_amount(amount : BigDecimal) : String
-      "%.2f" % amount.to_f
+      whole, _, fraction = amount.to_s.partition('.')
+      "#{whole}.#{fraction.ljust(2, '0')}"
     end
 
     private def pass(message : String) : Nil

@@ -107,6 +107,8 @@ Sign the draft from **your own record** of it with the endpoint's
 signing secret:
 
 ```crystal
+# draft: your own record of the draft, e.g. the JSON::Any body of the
+# create response (client.payments.create(...).body), stored in your ledger
 authorization = event["data"]["authorization"]
 input = Manza::TransferAuthorization.signature_input(
   draft["id"].as_s, authorization["nonce"].as_s,

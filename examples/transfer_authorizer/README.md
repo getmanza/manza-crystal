@@ -6,7 +6,7 @@ Two processes and a shared ledger, matching the two-key model of [transfer autho
 |---|---|---|
 | `create_transfer.cr` | Creates a transfer draft, records it in `ledger.json` from the API's response | A (`transfers:write`) |
 | `server.cr` / `src/authorizer.cr` | Receives `payment.authorization_requested`, verifies it, checks the ledger, signs and authorizes (or declines) | B (`transfers:authorize`) |
-| `preflight.cr` / `src/preflight.cr` | Checks every setup step and prints the fix for each that fails | A and B |
+| `preflight.cr` / `src/preflight.cr` | Checks the setup the API can show and prints the fix for each failure. It cannot see IP allowlists: check by hand that key B has one | A and B |
 | `src/ledger.cr` | Your own record of what you created, keyed by `client_reference`. Swap it for your database | — |
 | `src/routing.cr` | Says where the API routed a new draft (the authorizer, or your approvers and why) | — |
 | `src/dotenv.cr` | A minimal `.env` reader, so the example needs no shard | — |
@@ -66,14 +66,14 @@ crystal run create_transfer.cr -- 250.00    # any amount within your limits
 | `challenge sent, waiting for the authorizer` | The draft is inside your envelope: the webhook is on its way to terminal 1 |
 | `sent to your approvers, not the authorizer: refused (<reason>), <words>` | The draft is outside the envelope. The `refusal_reason` and what it means: `untrusted_payee`, `unrestricted_api_key` (a new payee, and key A has no IP allowlist), `over_new_payee_limit`, `over_transfer_limit`, `over_daily_limit`, `currency_mismatch`, `suspended`, `secret_expired`. Run `preflight.cr` |
 | `no transfer authorizer was enrolled` | The draft has no `authorization`: nothing was enrolled, or the feature is off |
-| `create failed for client_reference …: … (type …, request_id …)` | The API refused the draft, or did not answer. After a timeout the draft may exist anyway. If it reached the authorizer, terminal 1 shows it declined (not in the ledger) and a rerun is safe. Otherwise look for that `client_reference` among your approvers' drafts before rerunning, or the rerun creates a second transfer. Quote the `request_id` to support |
+| `create failed for client_reference …: … (type …, request_id …)` | The API refused the draft, or did not answer. After a timeout the draft may exist anyway. Rerun only once terminal 1 shows it `declined` (not in the ledger). If it logs `API error` instead, or nothing, look for that `client_reference` among your approvers' drafts before rerunning, or the rerun may create a second transfer. Quote the `request_id` to support |
 
 The authorizer (`server.cr`):
 
 | Line | Meaning |
 |---|---|
 | `received payment.authorization_requested (…), signature verified` | The delivery's `X-Manza-Signature` matches and its timestamp is fresh |
-| `rejected a delivery: …` | Bad signature, stale timestamp, missing header, or a body that is not a JSON object: answered 401 |
+| `rejected a delivery: …` | Bad signature, stale timestamp, missing header, or a body that is not a JSON object: answered 401. A body over 1 MB: answered 413 |
 | `ignoring …` | Any other event: answered 200, nothing done |
 | `ledger match for …` | The draft's id, amount, currency, account and payee match `ledger.json` |
 | `new payee ext:…, will be trusted on authorize` | The webhook's `payment.payee_trusted` is `false`: *Approve transfers to new payees* is on and these bank details were never trusted. The authorize trusts them |

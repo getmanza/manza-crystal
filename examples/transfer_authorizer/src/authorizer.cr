@@ -36,6 +36,9 @@ module TransferAuthorizer
     BUSY            = "authorization_busy"
     ATTEMPTS        = 3
     MAX_RETRY_AFTER = 30.seconds # a challenge expires, so never park the fiber for long
+    # A delivery is a few KB. The endpoint is public, so a larger body is
+    # refused before it is buffered whole or verified.
+    MAX_BODY_BYTES = 1024 * 1024
 
     alias Executor = Proc(Proc(Nil), Nil)
 
@@ -50,7 +53,11 @@ module TransferAuthorizer
     end
 
     def call(context : HTTP::Server::Context) : Nil
-      body = context.request.body.try(&.gets_to_end) || ""
+      body = read_body(context.request)
+      unless body
+        warn("rejected a delivery: body over #{MAX_BODY_BYTES} bytes")
+        return respond(context, 413)
+      end
       event = verify(body, context.request.headers)
       return respond(context, 401) unless event
       return ignore(context, event) unless event["event"]?.try(&.as_s?) == EVENT
@@ -58,6 +65,16 @@ module TransferAuthorizer
       data = event["data"]? || JSON::Any.new(nil)
       @executor.call(-> { answer(data) })
       respond(context, 200)
+    end
+
+    # The body, or nil when it is over MAX_BODY_BYTES (reads at most one
+    # byte past the limit).
+    private def read_body(request : HTTP::Request) : String?
+      io = request.body
+      return "" unless io
+
+      body = IO::Sized.new(io, MAX_BODY_BYTES + 1).gets_to_end
+      body.bytesize > MAX_BODY_BYTES ? nil : body
     end
 
     private def verify(body : String, headers : HTTP::Headers) : JSON::Any?
@@ -201,7 +218,7 @@ module TransferAuthorizer
     private def respond(context : HTTP::Server::Context, status : Int32) : Nil
       context.response.status_code = status
       context.response.content_type = "text/plain"
-      context.response.print(status == 200 ? "ok" : "unauthorized")
+      context.response.print(HTTP::Status.new(status).description.to_s.downcase)
     end
 
     private def info(message : String) : Nil

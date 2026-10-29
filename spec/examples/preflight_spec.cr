@@ -306,6 +306,23 @@ describe TransferAuthorizer::Preflight do
     end
   end
 
+  it "does not warn for a host that only ends with a tunnel domain's name" do
+    with_setup do |s|
+      s.endpoint["url"] = "https://notngrok-free.app/"
+      _, output = s.run
+
+      PreflightSpec.warnings(output).should be_empty
+    end
+  end
+
+  it "shows the amount it compared, without rounding it" do
+    with_setup do |s|
+      _, output = s.run(amount: "1000.001")
+
+      should_contain_all(failures(output).first?, "1000.001 is over the limit per transfer (1000.00)")
+    end
+  end
+
   it "fails when the amount is over the limit per transfer" do
     with_setup do |s|
       _, output = s.run(amount: "1500.00")

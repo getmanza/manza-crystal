@@ -52,7 +52,7 @@ class RouteStub
     reply = replies.size > 1 ? replies.shift : replies.first
     context.response.status_code = reply.status
     reply.headers.each { |name, values| context.response.headers[name] = values }
-    context.response.content_type = "application/json"
+    context.response.content_type = "application/json" unless context.response.headers.has_key?("Content-Type")
     context.response.print reply.body
   end
 end

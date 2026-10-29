@@ -61,8 +61,8 @@ module Manza
       # `unrestricted_api_key`). A 409 `Manza::ConflictError` with `type`
       # `authorization_busy` means a bank-detail edit, trust or trust
       # revocation on the payee was in flight: retry. A blank signature
-      # raises `Manza::ArgumentError` locally: the API counts it as a failed
-      # attempt, and five fail the challenge.
+      # raises `Manza::ArgumentError` locally and is never sent, because the
+      # API would count it as a failed attempt (five fail the challenge).
       def authorize(id : String, authorization_id : String, signature : String) : Response
         raise Manza::ArgumentError.new("signature cannot be blank") if signature.blank?
 

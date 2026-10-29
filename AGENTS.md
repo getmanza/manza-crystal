@@ -44,7 +44,7 @@ manza.payee_trust_requests.create([external_account_id])
 input = Manza::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference)
 Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
-# Webhook verifier (pure functions, no HTTP); failures raise Manza::ArgumentError
+# Webhook verifier (pure functions, no HTTP); `construct_event` raises Manza::ArgumentError, `verify?` returns false
 event = Manza::Webhook.construct_event(raw_body, context.request.headers, signing_secret)
 Manza::Webhook.verify?(raw_body, signature, timestamp, signing_secret) # Bool
 

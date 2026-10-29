@@ -358,6 +358,18 @@ describe TransferAuthorizer::App do
     end
   end
 
+  describe "with a body over the size limit" do
+    it "answers 413 without reading it all and calls nothing" do
+      with_harness do |h|
+        body = %({"event":"test.ping","pad":"#{"x" * (1024 * 1024)}"})
+        h.deliver(body).should eq(413)
+
+        h.stub.requests.should be_empty
+        h.log.to_s.should contain("rejected a delivery")
+      end
+    end
+  end
+
   describe "with a signed body that is not a JSON object" do
     it "answers 401 and calls nothing" do
       with_harness do |h|
