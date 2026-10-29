@@ -22,8 +22,16 @@ module Manza
     getter invoices : Resources::Invoices { Resources::Invoices.new(self) }
     getter payee_trust_requests : Resources::PayeeTrustRequests { Resources::PayeeTrustRequests.new(self) }
     getter payment_links : Resources::PaymentLinks { Resources::PaymentLinks.new(self) }
-    getter transfer_drafts : Resources::TransferDrafts { Resources::TransferDrafts.new(self) }
+    getter payments : Resources::Payments { Resources::Payments.new(self) }
+    getter transfer_authorizer : Resources::TransferAuthorizer { Resources::TransferAuthorizer.new(self) }
     getter webhook_endpoints : Resources::WebhookEndpoints { Resources::WebhookEndpoints.new(self) }
+
+    # Deprecated alias of `#payments`, kept for all of 1.x: returns the
+    # same resource, which calls `/api/payments`.
+    @[Deprecated("Use `#payments` instead.")]
+    def transfer_drafts : Resources::Payments
+      payments
+    end
 
     # Builds a client. An API key is required — pass `api_key` or set
     # MANZA_API_KEY. `base_url` defaults to MANZA_BASE_URL or

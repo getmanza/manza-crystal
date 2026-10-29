@@ -27,10 +27,12 @@ manza.accounts.list_transactions(account_id)
 manza.customers.create(name: "Acme")
 manza.payment_links.cancel(id)
 
-# Transfers (0.3.0): drafts never execute on their own
-draft = manza.transfer_drafts.create(account_id: a, beneficiary_id: b, amount: "150.00", client_reference: "po_1042")
-authorizer.transfer_drafts.authorize(id, authorization_id, signature) # `authorizer` is a client with a different API key than the creator's (`manza`)
-manza.transfer_drafts.decline(id, authorization_id, "wrong amount")
+# Payments (formerly transfer drafts): drafts never execute on their own.
+# `transfer_drafts` is a deprecated alias of `payments` (same resource, /api/payments)
+draft = manza.payments.create(account_id: a, beneficiary_id: b, amount: "150.00", client_reference: "po_1042")
+authorizer.payments.authorize(id, authorization_id, signature) # `authorizer` is a client with a different API key than the creator's (`manza`)
+manza.payments.decline(id, authorization_id, "wrong amount")
+authorizer.transfer_authorizer.get # the enrolled authorizer: status, suspension_reason, limits
 
 # Beneficiaries, external accounts, payee trust
 manza.beneficiaries.create(beneficiary_type: "business", company_name: "Acme SARL")
@@ -42,8 +44,12 @@ manza.payee_trust_requests.create([external_account_id])
 input = Manza::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference)
 Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
+# Webhook verifier (pure functions, no HTTP); `construct_event` raises Manza::ArgumentError, `verify?` returns false
+event = Manza::Webhook.construct_event(raw_body, context.request.headers, signing_secret)
+Manza::Webhook.verify?(raw_body, signature, timestamp, signing_secret) # Bool
+
 begin
-  manza.transfer_drafts.create(...)
+  manza.payments.create(...)
 rescue ex : Manza::ConflictError
   ex.payment_id # the draft that already holds this client_reference
 rescue ex : Manza::Error
@@ -51,7 +57,8 @@ rescue ex : Manza::Error
 end
 ```
 
-- Resources on `Manza::Client`: `accounts`, `beneficiaries`, `checkout_sessions`, `customers`, `entity`, `invoices`, `payee_trust_requests`, `payment_links`, `transfer_drafts`, `webhook_endpoints`
+- Resources on `Manza::Client`: `accounts`, `beneficiaries`, `checkout_sessions`, `customers`, `entity`, `invoices`, `payee_trust_requests`, `payment_links`, `payments`, `transfer_authorizer`, `webhook_endpoints` (plus the deprecated `transfer_drafts` alias of `payments`)
+- `examples/transfer_authorizer/` is a runnable port of manza-ruby's example (creator, authorizer server, preflight), specced in `spec/examples/` against `RouteStub` (`spec/support/route_stub.cr`), not cassettes: it drives several endpoints with non-recorded responses. It requires `../../src/manza`; nothing under `src/` requires it
 - `Manza::Page` is cursor-based pagination (`data`, `has_more`, `next_cursor`, `#next`), hard cap of 100 per page (`MAX_PER_PAGE`)
 - Error model: one `Manza::Error` carrying a `kind` (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`, `rate_limit`, `server`, `api`) plus `status`, `type`, `param`, `request_id`, `retry_after`, `body`. Match on `kind`, never on status codes or message text. `Manza::ConflictError < Manza::Error` (409) adds `payment_id`. `Manza::ArgumentError`, `Manza::ConfigurationError` and `Manza::ConnectionError` cover local misuse and transport failures
 - Response bodies are `Manza::Response#body` (`JSON::Any`, snake_case, as-is). **No typed models, no auto-camelCasing.**
@@ -67,10 +74,10 @@ end
 
 - **Never call a live Manza API** from specs, scripts or Claude sessions. Specs replay manza-ruby's cassettes only. Live staging calls create real transfers and approval requests for the team. Only manza-ruby records cassettes.
 - **Cassette contract.**
-  - Cassettes come from the manza-ruby release pinned in `scripts/fetch-cassettes.sh` (`PINNED_TAG`, currently `v1.0.0`; `cassettes-vX.Y.Z.tar.gz`) via that script into `spec/fixtures/cassettes/` (gitignored).
+  - Cassettes come from the manza-ruby release pinned in `scripts/fetch-cassettes.sh` (`PINNED_TAG`, currently `v1.3.0`; `cassettes-vX.Y.Z.tar.gz`) via that script into `spec/fixtures/cassettes/` (gitignored).
   - They are recorded against `https://ma.manza.dev`. `ReplayServer` raises if a cassette's host differs.
-  - Load one cassette per spec: `transfer_drafts/authorize` vs `authorize_same_key`, and `create` vs `create_duplicate`, share method + URI and the lookup is first-match.
-  - The three authorize cassettes use `with_replay(..., ignore_signature: true)`: the body is compared minus `signature`.
+  - Load one cassette per spec: `payments/authorize` vs `authorize_same_key`, and `create` vs `create_duplicate`, share method + URI and the lookup is first-match.
+  - The four authorize cassettes (`payments/authorize`, `authorize_same_key`, `authorize_bad_signature`, `authorize_new_payee`) use `with_replay(..., ignore_signature: true)`: the body is compared minus `signature`.
   - Every other body is compared semantically: method, path + query (host ignored, query order ignored), and JSON parsed on both sides so key order never matters (byte-for-byte when not JSON).
   - The replay server does not replay recorded response headers, so cassette responses carry no `Content-Length`.
   - The `FIXTURE_IDS` table in `spec/support/fixture_ids.cr` must stay identical to manza-ruby's `spec/support/fixture_ids.rb`.

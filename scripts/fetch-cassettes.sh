@@ -16,7 +16,7 @@ DEST="$ROOT/spec/fixtures/cassettes"
 
 # Pinned so a new manza-ruby release cannot break every SDK's CI at once.
 # Bump deliberately when the cassette contract changes.
-PINNED_TAG="v1.0.0"
+PINNED_TAG="v1.3.0"
 TAG="${1:-$PINNED_TAG}"
 AUTH=()
 if [[ -n "${GH_TOKEN:-}" ]]; then

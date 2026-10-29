@@ -1,0 +1,4 @@
+.env
+ledger.json
+ledger.json.lock
+ledger.json.*.tmp

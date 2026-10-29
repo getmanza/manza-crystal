@@ -7,6 +7,53 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+Ports manza-ruby 1.1.0 to 1.3.0.
+
+### Added
+
+- `Manza::Webhook` verifies incoming deliveries: `verify?(payload,
+  signature, timestamp, secret)` returns a `Bool`, `construct_event(payload,
+  headers, secret)` returns the parsed event (always a JSON object) or
+  raises `Manza::ArgumentError`, and `sign` builds a signature for tests.
+  The signed content is `"<timestamp>.<raw body>"` (hex HMAC-SHA256,
+  constant-time compare); the timestamp must be within 300 s
+  (`tolerance: nil` skips it); headers are read case-insensitively,
+  `X-Manza-*` first, then `X-Zazu-*`. Passes the vector shared across SDKs.
+- `client.payments`, the canonical resource for API-initiated transfers:
+  `create`, `get`, `authorize` and `decline` on `/api/payments`. Bodies and
+  the transfer-authorization signature input are unchanged.
+- `client.transfer_authorizer.get` (`GET /api/transfer_authorizer`): the
+  enrolled authorizer's status, `suspension_reason`, currency, limits,
+  secret expiry and webhook endpoint. Nothing enrolled raises `Manza::Error`
+  with `kind` `not_found`.
+- `examples/transfer_authorizer/`: a creator (`create_transfer.cr`), an
+  authorizer on stdlib `HTTP::Server` (`server.cr`) and a `preflight.cr`
+  that checks every setup step, ported from manza-ruby with the same env
+  vars, checks and log lines, and specs under `spec/examples/`. Shards
+  install a dependency's whole git tree, so the files are on disk in an
+  installed shard; nothing under `src/` requires them.
+- README: "Setup, step by step" for machine-authorized transfers, a
+  verifier snippet, and links to the example and the
+  [transfer authorization docs](https://ma.manza.finance/docs/api/transfer-authorization).
+- New response fields need no SDK change and pass through as-is:
+  `authorization.refusal_reason`, `trusted` on external accounts, and
+  `payment.payee_trusted` in the `payment.authorization_requested` webhook.
+
+### Deprecated
+
+- `client.transfer_drafts` is an alias of `client.payments` (same resource,
+  same methods, now calling `/api/payments`) and warns at compile time; it
+  stays for all of 1.x. `Manza::Resources::TransferDrafts` is an alias of
+  `Manza::Resources::Payments`.
+
+### Changed
+
+- Cassettes are pinned to manza-ruby `v1.3.0` (`cassettes-v1.3.0.tar.gz`).
+  The payment cassettes moved from `transfer_drafts/` to `payments/` and
+  match `/api/payments…`.
+
+## [1.0.0]
+
 ### Changed
 
 - **Renamed zazu to manza.** The shard, require path, namespace and repo all

@@ -104,29 +104,31 @@ describe "WebhookEndpoints" do
   end
 end
 
-describe "TransferDrafts" do
+describe "Payments" do
   it "creates a draft carrying the client_reference" do
-    with_replay("transfer_drafts/create") do |client|
-      response = client.transfer_drafts.create(
+    with_replay("payments/create") do |client|
+      response = client.payments.create(
         account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
         beneficiary_id: fixture_id("MANZA_FIXTURE_BENEFICIARY_ID"),
-        amount: "150.00",
+        amount: "10.00",
         payment_reference: "SDK fixture",
+        internal_notes: "[zazu-ruby-fixture] create spec - do not approve",
         client_reference: fixture_id("MANZA_FIXTURE_CLIENT_REFERENCE")
       )
       response.status.should eq(201)
       # Awaiting approval — the API never executes a transfer itself.
       response.body["status"].as_s?.should eq("requested")
       response.body["client_reference"].as_s?.should eq(fixture_id("MANZA_FIXTURE_CLIENT_REFERENCE"))
-      response.body.as_h.has_key?("authorization").should be_true
+      # Inside the envelope: the challenge went to the authorizer.
+      response.body["authorization"]["status"].as_s?.should eq("pending")
       response.body["transfer"].raw.should be_nil
     end
   end
 
   it "raises ConflictError naming the existing draft on a duplicate client_reference" do
-    with_replay("transfer_drafts/create_duplicate") do |client|
+    with_replay("payments/create_duplicate") do |client|
       error = expect_raises(Manza::ConflictError) do
-        client.transfer_drafts.create(
+        client.payments.create(
           account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
           beneficiary_id: fixture_id("MANZA_FIXTURE_BENEFICIARY_ID"),
           amount: "10.00",
@@ -141,11 +143,20 @@ describe "TransferDrafts" do
   end
 
   it "gets a draft" do
-    with_replay("transfer_drafts/get") do |client|
-      got = client.transfer_drafts.get(fixture_id("MANZA_FIXTURE_TRANSFER_DRAFT_ID"))
+    with_replay("payments/get") do |client|
+      got = client.payments.get(fixture_id("MANZA_FIXTURE_TRANSFER_DRAFT_ID"))
       got.body["id"].as_s?.should_not be_nil
       got.body.as_h.has_key?("status").should be_true
       got.body.as_h.has_key?("transfer").should be_true
+    end
+  end
+
+  it "gets a draft refused at create time, with its refusal_reason" do
+    with_replay("payments/get_refused") do |client|
+      got = client.payments.get(fixture_id("MANZA_FIXTURE_REFUSED_DRAFT_ID"))
+      got.body["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_REFUSED_DRAFT_ID"))
+      got.body["authorization"]["status"].as_s?.should eq("refused")
+      got.body["authorization"]["refusal_reason"].as_s?.should eq("over_transfer_limit")
     end
   end
 
@@ -154,17 +165,17 @@ describe "TransferDrafts" do
     client = Manza::Client.new(api_key: "test", base_url: "http://127.0.0.1:1")
 
     expect_raises(Manza::ArgumentError, /signature/) do
-      client.transfer_drafts.authorize("draft", "auth", " ")
+      client.payments.authorize("draft", "auth", " ")
     end
     expect_raises(Manza::ArgumentError, /signature/) do
-      client.transfer_drafts.authorize("draft", "auth", "")
+      client.payments.authorize("draft", "auth", "")
     end
   end
 
   it "raises ValidationError invalid_signature on a bad signature" do
-    with_replay("transfer_drafts/authorize_bad_signature", ignore_signature: true) do |client|
+    with_replay("payments/authorize_bad_signature", ignore_signature: true) do |client|
       error = expect_raises(Manza::Error) do
-        client.transfer_drafts.authorize(
+        client.payments.authorize(
           fixture_id("MANZA_FIXTURE_BAD_SIGNATURE_DRAFT_ID"),
           fixture_id("MANZA_FIXTURE_BAD_SIGNATURE_AUTHORIZATION_ID"),
           "0" * 64
@@ -176,9 +187,9 @@ describe "TransferDrafts" do
   end
 
   it "raises forbidden same_key_forbidden when the creating key authorizes" do
-    with_replay("transfer_drafts/authorize_same_key", ignore_signature: true) do |client|
+    with_replay("payments/authorize_same_key", ignore_signature: true) do |client|
       error = expect_raises(Manza::Error) do
-        client.transfer_drafts.authorize(
+        client.payments.authorize(
           fixture_id("MANZA_FIXTURE_AUTHORIZABLE_DRAFT_ID"),
           fixture_id("MANZA_FIXTURE_AUTHORIZABLE_AUTHORIZATION_ID"),
           "0" * 64
@@ -190,7 +201,7 @@ describe "TransferDrafts" do
   end
 
   it "authorizes (executes) a draft" do
-    with_replay("transfer_drafts/authorize", ignore_signature: true) do |client|
+    with_replay("payments/authorize", ignore_signature: true) do |client|
       draft_id = fixture_id("MANZA_FIXTURE_AUTHORIZABLE_DRAFT_ID")
       input = Manza::TransferAuthorization.signature_input(
         draft_id,
@@ -204,7 +215,7 @@ describe "TransferDrafts" do
         fixture_id("MANZA_FIXTURE_AUTHORIZABLE_CLIENT_REFERENCE")
       )
 
-      response = client.transfer_drafts.authorize(
+      response = client.payments.authorize(
         draft_id,
         fixture_id("MANZA_FIXTURE_AUTHORIZABLE_AUTHORIZATION_ID"),
         Manza::TransferAuthorization.sign("replay-secret", input)
@@ -215,9 +226,35 @@ describe "TransferDrafts" do
     end
   end
 
+  # The fresh bank account was never trusted; with "Approve transfers to
+  # new payees" on, the authorizer approves it and the signature trusts it.
+  it "authorizes a draft to a new payee" do
+    with_replay("payments/authorize_new_payee", ignore_signature: true) do |client|
+      draft_id = fixture_id("MANZA_FIXTURE_NEW_PAYEE_DRAFT_ID")
+      input = Manza::TransferAuthorization.signature_input(
+        draft_id,
+        fixture_id("MANZA_FIXTURE_NEW_PAYEE_NONCE"),
+        "10.0",
+        "MAD",
+        fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
+        Manza::TransferAuthorization.payee_for(external_account_id: fixture_id("MANZA_FIXTURE_EXTERNAL_ACCOUNT_ID")),
+        fixture_id("MANZA_FIXTURE_NEW_PAYEE_CLIENT_REFERENCE")
+      )
+
+      response = client.payments.authorize(
+        draft_id,
+        fixture_id("MANZA_FIXTURE_NEW_PAYEE_AUTHORIZATION_ID"),
+        Manza::TransferAuthorization.sign("replay-secret", input)
+      )
+      response.status.should eq(200)
+      response.body["id"].as_s?.should eq(draft_id)
+      response.body["authorization"]["status"].as_s?.should eq("authorized")
+    end
+  end
+
   it "declines the challenge" do
-    with_replay("transfer_drafts/decline") do |client|
-      response = client.transfer_drafts.decline(
+    with_replay("payments/decline") do |client|
+      response = client.payments.decline(
         fixture_id("MANZA_FIXTURE_DECLINABLE_DRAFT_ID"),
         fixture_id("MANZA_FIXTURE_DECLINABLE_AUTHORIZATION_ID"),
         "SDK fixture"
@@ -226,6 +263,49 @@ describe "TransferDrafts" do
       response.body["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_DECLINABLE_AUTHORIZATION_ID"))
       response.body["status"].as_s?.should eq("declined")
       response.body["declined_at"].as_s?.should_not be_nil
+    end
+  end
+end
+
+describe "TransferDrafts (deprecated)" do
+  it "is the payments resource, so it calls /api/payments" do
+    client = Manza::Client.new(api_key: "test", base_url: "http://127.0.0.1:1")
+
+    client.transfer_drafts.should be(client.payments)
+  end
+
+  it "keeps the constant, naming the same class" do
+    Manza::Resources::TransferDrafts.should eq(Manza::Resources::Payments)
+  end
+
+  it "replays the payments cassettes" do
+    with_replay("payments/get") do |client|
+      client.transfer_drafts.get(fixture_id("MANZA_FIXTURE_TRANSFER_DRAFT_ID")).status.should eq(200)
+    end
+  end
+end
+
+describe "TransferAuthorizer" do
+  it "returns the enrolled authorizer's status, limits and usage" do
+    with_replay("transfer_authorizer/get") do |client|
+      response = client.transfer_authorizer.get
+      response.status.should eq(200)
+      response.body["status"].as_s?.should eq("active")
+      response.body["suspension_reason"].raw.should be_nil
+      response.body["currency_code"].as_s?.should eq("MAD")
+      %w[per_transfer_limit daily_limit daily_authorized_total secret_expires_at webhook_endpoint_id enrolled_at].each do |key|
+        response.body.as_h.has_key?(key).should be_true
+      end
+    end
+  end
+
+  it "raises not_found when no authorizer is enrolled" do
+    body = %({"error":{"type":"not_found","message":"No transfer authorizer is enrolled"}})
+    with_stub(404, body) do |stub|
+      error = expect_raises(Manza::Error) { stub.client.transfer_authorizer.get }
+      error.kind.should eq("not_found")
+      stub.last_method.should eq("GET")
+      stub.last_resource.should eq("/api/transfer_authorizer")
     end
   end
 end
@@ -246,7 +326,7 @@ describe "Beneficiaries" do
     with_replay("beneficiaries/create") do |client|
       response = client.beneficiaries.create(
         beneficiary_type: "business",
-        company_name: "Zazu Fixture Beneficiary - spec (zazu-ruby-fixture)",
+        company_name: "Manza Fixture Beneficiary spec",
         email: "fixture-beneficiary-spec@example.com"
       )
       response.status.should eq(201)
@@ -273,6 +353,18 @@ describe "Beneficiaries" do
       )
       response.body["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_EXTERNAL_ACCOUNT_ID"))
       response.body.as_h.has_key?("default").should be_true
+    end
+  end
+
+  # Recorded after the new-payee authorize: its signature trusted the payee.
+  it "shows the new payee's bank account as trusted afterwards" do
+    with_replay("beneficiaries/get_external_account_trusted") do |client|
+      response = client.beneficiaries.get_external_account(
+        fixture_id("MANZA_FIXTURE_CREATED_BENEFICIARY_ID"),
+        fixture_id("MANZA_FIXTURE_EXTERNAL_ACCOUNT_ID")
+      )
+      response.body["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_EXTERNAL_ACCOUNT_ID"))
+      response.body["trusted"].as_bool?.should be_true
     end
   end
 

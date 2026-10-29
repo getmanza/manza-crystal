@@ -12,13 +12,13 @@ require "yaml"
 #
 # Matching is method + path+query (host ignored) + semantic JSON body
 # (both sides are parsed and compared — key order never matters). The
-# three transfer-authorize cassettes opt into `ignore_signature`: the
+# four authorize cassettes opt into `ignore_signature`: the
 # recorded `signature` is an HMAC over the real nonce under the real
 # authorizer secret (scrubbed to `<SIGNATURE>`), which replay cannot
 # reproduce, so the body is compared with `signature` removed.
 #
 # Load one cassette per test when two share method + URI
-# (`transfer_drafts/authorize` vs `authorize_same_key`, and
+# (`payments/authorize` vs `authorize_same_key`, and
 # `create` vs `create_duplicate`): the lookup is first-match.
 class ReplayServer
   # The host every cassette was recorded against (the replay server
