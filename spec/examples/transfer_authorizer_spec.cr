@@ -82,6 +82,7 @@ module TransferAuthorizerSpec
     getter stub : RouteStub
     getter log = IO::Memory.new
     getter ledger : TransferAuthorizer::Ledger
+    getter! last_request : HTTP::Request
 
     def initialize(@stub : RouteStub, allow_new_payees : Bool = true)
       @path = File.tempname("ledger", ".json")
@@ -111,7 +112,8 @@ module TransferAuthorizerSpec
         "X-Manza-Timestamp" => timestamp,
       }
       response = HTTP::Server::Response.new(IO::Memory.new)
-      context = HTTP::Server::Context.new(HTTP::Request.new("POST", "/", headers, body), response)
+      @last_request = request = HTTP::Request.new("POST", "/", headers, body)
+      context = HTTP::Server::Context.new(request, response)
       @app.call(context)
       response.status_code
     end
@@ -363,6 +365,10 @@ describe TransferAuthorizer::App do
       with_harness do |h|
         body = %({"event":"test.ping","pad":"#{"x" * (1024 * 1024)}"})
         h.deliver(body).should eq(413)
+
+        # It stopped one byte past the limit: the rest is still unread.
+        unread = h.last_request.body.not_nil!.gets_to_end.bytesize
+        unread.should eq(body.bytesize - (1024 * 1024 + 1))
 
         h.stub.requests.should be_empty
         h.log.to_s.should contain("rejected a delivery")
