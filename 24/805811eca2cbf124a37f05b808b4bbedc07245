@@ -1,0 +1,33 @@
+spec/examples/routing_spec.cr
+  s_65c3c5c5f93719::t_6c7976f979941c 1-44
+spec/support/route_stub.cr
+  s_65c3c5c5f93719::t_337a45b5cfc641 22
+README.md
+  s_65c3c5c5f93719::t_c89c64cf5bfff6 86-94
+spec/examples/transfer_authorizer_spec.cr
+  s_65c3c5c5f93719::t_5cf357f7831f2c 1-28,30-61,63-68,70-76,78-127,129-381
+spec/examples/preflight_spec.cr
+  s_65c3c5c5f93719::t_5b3ef3c86cbe7e 1-46,50-344
+examples/transfer_authorizer/src/authorizer.cr
+  s_65c3c5c5f93719::t_10d58ce1ec2e5b 1-170,172-173,179-187,190-223
+examples/transfer_authorizer/README.md
+  s_65c3c5c5f93719::t_3db262cea5e21c 1-91
+examples/transfer_authorizer/src/preflight.cr
+  s_65c3c5c5f93719::t_acdffd6a99d235 1-80,82-95,97-112,114-152,154-190,192-219,225-226,228-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "24805811eca2cbf124a37f05b808b4bbedc07245",
+  "prompts": {},
+  "sessions": {
+    "s_65c3c5c5f93719": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bee1964f-92c4-4310-92b4-5e82d7d3d709",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
