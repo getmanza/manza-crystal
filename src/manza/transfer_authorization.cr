@@ -9,7 +9,7 @@ module Manza
   # from your *own* record of the transfer (not the webhook's
   # `signature_input`, which is there only to compare against), sign it
   # with the authorizer endpoint's signing secret, and pass the result to
-  # `Resources::TransferDrafts#authorize`:
+  # `Resources::Payments#authorize`:
   #
   # ```
   # input = Manza::TransferAuthorization.signature_input(
@@ -19,7 +19,7 @@ module Manza
   #   draft["client_reference"].as_s?
   # )
   # signature = Manza::TransferAuthorization.sign(signing_secret, input)
-  # authorizer.transfer_drafts.authorize(draft["id"].as_s, authorization_id, signature)
+  # authorizer.payments.authorize(draft["id"].as_s, authorization_id, signature)
   # ```
   module TransferAuthorization
     SIGNATURE_VERSION = "manza.transfer-authorization.v1"

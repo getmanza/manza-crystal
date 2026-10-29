@@ -84,7 +84,7 @@ describe Manza::Client do
     it "maps 409 to ConflictError carrying payment_id" do
       body = %({"error":{"type":"duplicate_client_reference","message":"exists","payment_id":"pay_1"}})
       with_stub(409, body) do |stub|
-        error = expect_raises(Manza::ConflictError) { stub.client.transfer_drafts.create(amount: "10.00") }
+        error = expect_raises(Manza::ConflictError) { stub.client.payments.create(amount: "10.00") }
         error.kind.should eq("conflict")
         error.type.should eq("duplicate_client_reference")
         error.payment_id.should eq("pay_1")
@@ -94,24 +94,24 @@ describe Manza::Client do
 
     it "leaves payment_id nil when the 409 carries none" do
       with_stub(409, %({"error":{"type":"conflict","message":"nope"}})) do |stub|
-        error = expect_raises(Manza::ConflictError) { stub.client.transfer_drafts.create(amount: "10.00") }
+        error = expect_raises(Manza::ConflictError) { stub.client.payments.create(amount: "10.00") }
         error.payment_id.should be_nil
       end
     end
   end
 
-  describe "TransferDrafts#decline" do
+  describe "Payments#decline" do
     it "omits reason when absent" do
       with_stub(200) do |stub|
-        stub.client.transfer_drafts.decline("draft_1", "auth_1")
-        stub.last_resource.should eq("/api/transfer_drafts/draft_1/decline")
+        stub.client.payments.decline("draft_1", "auth_1")
+        stub.last_resource.should eq("/api/payments/draft_1/decline")
         stub.last_body.should eq(%({"authorization_id":"auth_1"}))
       end
     end
 
     it "sends reason, after authorization_id, when given" do
       with_stub(200) do |stub|
-        stub.client.transfer_drafts.decline("draft_1", "auth_1", "Not ours")
+        stub.client.payments.decline("draft_1", "auth_1", "Not ours")
         stub.last_body.should eq(%({"authorization_id":"auth_1","reason":"Not ours"}))
       end
     end
