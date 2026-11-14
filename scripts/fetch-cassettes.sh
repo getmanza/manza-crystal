@@ -4,7 +4,7 @@
 # into both repos.
 #
 #   scripts/fetch-cassettes.sh            # the pinned tag (PINNED_TAG below)
-#   scripts/fetch-cassettes.sh v1.0.1     # specific tag
+#   scripts/fetch-cassettes.sh v2.0.0     # specific tag
 #   scripts/fetch-cassettes.sh latest     # newest release tag
 #
 # Cassettes land under spec/fixtures/cassettes/.

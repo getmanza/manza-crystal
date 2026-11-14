@@ -114,6 +114,15 @@ describe Manza::Client do
       end
     end
 
+    it "leaves limit_kind, current and max nil when the 422 carries none" do
+      with_stub(422, %({"error":{"type":"plan_limit_reached","message":"capped"}})) do |stub|
+        error = expect_raises(Manza::PlanLimitReachedError) { stub.client.entity.get }
+        error.limit_kind.should be_nil
+        error.current.should be_nil
+        error.max.should be_nil
+      end
+    end
+
     it "keeps any other 422 a plain validation error" do
       body = %({"error":{"message":"Customer not found","type":"invalid_request_error","param":"customer_id"}})
       with_stub(422, body) do |stub|

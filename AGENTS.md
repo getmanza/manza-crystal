@@ -82,7 +82,7 @@ end
   - The replay server does not replay recorded response headers, so cassette responses carry no `Content-Length`.
   - The `FIXTURE_IDS` table in `spec/support/fixture_ids.cr` must stay identical to manza-ruby's `spec/support/fixture_ids.rb`.
 - **Hosts.** Default `https://ma.manza.finance`, South Africa `https://za.manza.finance`, staging and cassettes `https://ma.manza.dev`. Env vars are `MANZA_API_KEY`, `MANZA_BASE_URL`, `MANZA_API_VERSION`; the pre-1.0 `ZAZU_*` names are read as a fallback (kept in 2.0, until a later major) and warn once (`Manza::Env`). Version header is `Manza-Version`, User-Agent `manza-crystal/<version>`.
-- **A replay mismatch is fixed in the SDK, never in the cassette.** "no cassette interaction matches" means the request drifted from the recording (or two cassettes sharing method + URI were loaded in one spec). Never edit a cassette or the matcher to pass, and never record here. A spec that needs a newer cassette waits on a manza-ruby release plus a deliberate `PINNED_TAG` bump. A fetch 404 means that tag has no tarball yet: re-run later or try `scripts/fetch-cassettes.sh v1.0.1`.
+- **A replay mismatch is fixed in the SDK, never in the cassette.** "no cassette interaction matches" means the request drifted from the recording (or two cassettes sharing method + URI were loaded in one spec). Never edit a cassette or the matcher to pass, and never record here. A spec that needs a newer cassette waits on a manza-ruby release plus a deliberate `PINNED_TAG` bump. A fetch 404 means that tag has no tarball yet: re-run later. An older tag is no fallback: its cassettes predate the specs (v1.x lacks the 2.0 interactions).
 - **A public API break is deliberate**: named in the changelog and released as a major.
 - **Never skip or weaken `crystal tool format --check`**, and never hand-edit `bin/release` or push a tag by hand (the `release.yml` gate fails when tag, `shard.yml` and `Manza::VERSION` differ).
 - **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. `ConflictError` is the 10th error class (409), `PlanLimitReachedError` the 11th (422 `plan_limit_reached`).
@@ -166,7 +166,7 @@ Exact commands from `.github/workflows/ci.yml`:
 ```bash
 # One-time setup
 shards install                    # no dependencies today; release-check runs it too
-scripts/fetch-cassettes.sh        # the pinned tag; or scripts/fetch-cassettes.sh v1.0.1, or `latest`
+scripts/fetch-cassettes.sh        # the pinned tag; or scripts/fetch-cassettes.sh v2.0.0, or `latest`
 
 # Daily loop
 crystal spec spec/manza/resources_spec.cr   # while iterating

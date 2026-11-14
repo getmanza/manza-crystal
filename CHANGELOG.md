@@ -62,8 +62,8 @@ from 1.x below.
   enabled for the entity). Invoice responses carry `generate_payment_link`
   and the embedded `account`.
 - `transfer_method` on `payments.create`: `eft` or `rtc` in South Africa,
-  `standard` or `instant` in Morocco; one the market does not offer raises
-  `Manza::Error` (`kind` `validation`) with `param` `transfer_method`.
+  `standard` or `instant` in Morocco; a rail the market does not offer
+  raises `Manza::Error` (`kind` `validation`) with `param` `transfer_method`.
   Payment responses carry `transfer_method` (the rail sent, the provider's
   default when left out, null where the market offers no choice).
 - Documented: the authorization `refusal_reason` `rail_limit_exceeded`
