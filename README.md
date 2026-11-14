@@ -201,7 +201,7 @@ requests and requests pinned to `2026-11-13` or later; a client pinned to
 
 The pre-1.0 `ZAZU_API_KEY`, `ZAZU_BASE_URL` and `ZAZU_API_VERSION` are still
 read when the `MANZA_*` name is unset, with a one-time deprecation warning on
-stderr, for all of 1.x.
+stderr, until a later major release (2.0 keeps them).
 
 Production is `https://ma.manza.finance` (Morocco); for South Africa
 pass `base_url: "https://za.manza.finance"`. The cassettes are recorded

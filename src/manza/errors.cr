@@ -66,7 +66,7 @@ module Manza
 
       if status == 422 && error_type == "plan_limit_reached"
         return PlanLimitReachedError.new(
-          message, status, kind, error_type, param, request_id, retry_after, body,
+          payload.try(&.["message"]?).try(&.as_s?) || "Plan limit reached", status, kind, error_type, param, request_id, retry_after, body,
           limit_kind: payload.try(&.["kind"]?).try(&.as_s?),
           current: payload.try(&.["current"]?).try(&.as_i64?),
           max: payload.try(&.["max"]?).try(&.as_i64?)

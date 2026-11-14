@@ -44,6 +44,9 @@ from 1.x below.
   invoice's `status` may be `declined`, and `invoices.delete` also takes a
   `declined` invoice that has no number.
 - Cassettes are pinned to manza-ruby `v2.0.0` (`cassettes-v2.0.0.tar.gz`).
+- The `ZAZU_*` env fallback and the deprecated `client.transfer_drafts`
+  alias stay in 2.0; the deprecation warning now says support ends in a
+  later major release instead of "in 2.0".
 
 ### Added
 

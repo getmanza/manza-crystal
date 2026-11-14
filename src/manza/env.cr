@@ -1,6 +1,6 @@
 module Manza
   # Reads client configuration from the environment. `MANZA_<NAME>` wins;
-  # the pre-1.0 `ZAZU_<NAME>` is still honoured for all of 1.x and warns
+  # the pre-1.0 `ZAZU_<NAME>` is still honoured (until a later major) and warns
   # once per variable per process.
   module Env
     @@warned = Set(String).new
@@ -32,7 +32,7 @@ module Manza
 
     private def self.warn_once(legacy : String, current : String)
       first = @@mutex.synchronize { @@warned.add?(legacy) }
-      @@warn_io.puts "manza: #{legacy} is deprecated, use #{current} (support for #{legacy} ends in 2.0)" if first
+      @@warn_io.puts "manza: #{legacy} is deprecated, use #{current} (support for #{legacy} ends in a later major release)" if first
     end
   end
 end
