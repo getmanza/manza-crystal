@@ -50,7 +50,7 @@ begin
   ledger.record(
     client_reference,
     payment_id: payment_id, amount: draft["amount"].as_s, currency_code: draft["currency_code"].as_s,
-    account_id: draft["account_id"].as_s, payee: payee
+    account_id: draft["account_id"].as_s, payee: payee, transfer_method: draft["transfer_method"]?.try(&.as_s?)
   )
 rescue ex
   abort "payment #{payment_id} (client_reference #{client_reference}) was created but not written to the ledger " \

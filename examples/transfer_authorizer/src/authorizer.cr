@@ -24,11 +24,12 @@ module TransferAuthorizer
 
     # Ledger field → webhook `data.payment` field. All must match.
     CHECKED_FIELDS = {
-      "payment_id"    => "id",
-      "amount"        => "amount",
-      "currency_code" => "currency_code",
-      "account_id"    => "account_id",
-      "payee"         => "payee",
+      "payment_id"      => "id",
+      "amount"          => "amount",
+      "currency_code"   => "currency_code",
+      "account_id"      => "account_id",
+      "payee"           => "payee",
+      "transfer_method" => "transfer_method",
     }
 
     # A 409 of this type means a bank-detail edit, trust or revocation on
@@ -114,7 +115,7 @@ module TransferAuthorizer
       end
 
       info("ledger match for #{client_reference}: #{payment["amount"]?} #{payment["currency_code"]?} to #{payment["payee"]?}")
-      authorize(entry, authorization, client_reference, data["signature_input"]?.try(&.as_s?))
+      authorize(entry, authorization, client_reference, data["signature_input_v2"]?.try(&.as_s?))
     rescue ex : Manza::Error
       error("API error #{ex.class.name} #{ex.kind}: #{ex.message} (type #{ex.type.inspect}, request_id #{ex.request_id.inspect})")
     rescue ex : Manza::ConnectionError
@@ -145,13 +146,14 @@ module TransferAuthorizer
       nil
     end
 
-    # Sign from the ledger, never from the webhook: `signature_input` in the
-    # webhook is only there to compare against.
+    # Sign from the ledger, never from the webhook: `signature_input_v2` in
+    # the webhook is only there to compare against. (Its `signature_input`
+    # is the v1 string, for clients pinned to Manza-Version 2026-03-27.)
     private def authorize(entry : Ledger::Entry, authorization : JSON::Any, client_reference : String?,
                           webhook_input : String?) : Nil
       input = Manza::TransferAuthorization.signature_input(
         entry["payment_id"], authorization["nonce"].as_s, entry["amount"], entry["currency_code"],
-        entry["account_id"], entry["payee"], client_reference
+        entry["account_id"], entry["payee"], client_reference, transfer_method: entry["transfer_method"]?
       )
       # A signature over a different input is sure to fail, and failed
       # attempts count toward suspending the authorizer. Leave the challenge

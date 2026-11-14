@@ -98,6 +98,40 @@ describe Manza::Client do
         error.payment_id.should be_nil
       end
     end
+
+    # The API's body verbatim (getmanza/app spec/requests/api/invoices_spec.rb).
+    it "maps 422 plan_limit_reached to PlanLimitReachedError carrying limit_kind, current and max" do
+      body = %({"error":{"type":"plan_limit_reached","message":"Plan limit reached for invoices: 10 of 10",) +
+             %("kind":"invoices","current":10,"max":10}})
+      with_stub(422, body) do |stub|
+        error = expect_raises(Manza::PlanLimitReachedError) { stub.client.entity.get }
+        error.is_a?(Manza::Error).should be_true
+        error.status.should eq(422)
+        error.kind.should eq("validation")
+        error.type.should eq("plan_limit_reached")
+        error.message.should eq("Plan limit reached for invoices: 10 of 10")
+        {error.limit_kind, error.current, error.max}.should eq({"invoices", 10, 10})
+      end
+    end
+
+    it "keeps any other 422 a plain validation error" do
+      body = %({"error":{"message":"Customer not found","type":"invalid_request_error","param":"customer_id"}})
+      with_stub(422, body) do |stub|
+        error = expect_raises(Manza::Error) { stub.client.entity.get }
+        error.should_not be_a(Manza::PlanLimitReachedError)
+        error.kind.should eq("validation")
+        error.param.should eq("customer_id")
+      end
+    end
+
+    it "keeps plan_limit_reached on another status a plain error of that status's kind" do
+      body = %({"error":{"type":"plan_limit_reached","message":"boom","kind":"invoices","current":1,"max":1}})
+      with_stub(500, body) do |stub|
+        error = expect_raises(Manza::Error) { stub.client.entity.get }
+        error.should_not be_a(Manza::PlanLimitReachedError)
+        error.kind.should eq("server")
+      end
+    end
   end
 
   describe "Payments#decline" do

@@ -7,7 +7,7 @@ module Manza
   # The `payment.authorization_requested` webhook delivers the
   # authorization id and a one-time nonce. Build the signature input
   # from your *own* record of the transfer (not the webhook's
-  # `signature_input`, which is there only to compare against), sign it
+  # `signature_input_v2`, which is there only to compare against), sign it
   # with the authorizer endpoint's signing secret, and pass the result to
   # `Resources::Payments#authorize`:
   #
@@ -16,22 +16,31 @@ module Manza
   #   draft["id"].as_s, nonce, draft["amount"].as_s, draft["currency_code"].as_s,
   #   draft["account_id"].as_s,
   #   Manza::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
-  #   draft["client_reference"].as_s?
+  #   draft["client_reference"].as_s?,
+  #   transfer_method: draft["transfer_method"].as_s?
   # )
   # signature = Manza::TransferAuthorization.sign(signing_secret, input)
   # authorizer.payments.authorize(draft["id"].as_s, authorization_id, signature)
   # ```
+  #
+  # This is the v2 input, which the API verifies for every request that
+  # is unpinned or sends `Manza-Version: 2026-11-13` or later. A client
+  # pinned to `Manza-Version: 2026-03-27` must sign v1 and stays on
+  # manza-crystal 1.x.
   module TransferAuthorization
-    SIGNATURE_VERSION = "manza.transfer-authorization.v1"
+    SIGNATURE_VERSION = "manza.transfer-authorization.v2"
 
     # `amount` must be the API's decimal string verbatim (e.g. "2500.0"),
     # which is why it is a `String` and not a number. `client_reference`
-    # is empty when the transfer has none.
+    # is empty when the transfer has none. `transfer_method` is the
+    # payment's rail as the API stores it (the create response's
+    # `transfer_method`): a required named argument, nil (signed as an
+    # empty segment) where the market offers no choice.
     def self.signature_input(payment_id : String, nonce : String, amount : String,
                              currency_code : String, account_id : String, payee : String,
-                             client_reference : String? = nil) : String
+                             client_reference : String? = nil, *, transfer_method : String?) : String
       [SIGNATURE_VERSION, payment_id, nonce, amount, currency_code, account_id, payee,
-       client_reference.to_s].join('|')
+       client_reference.to_s, transfer_method.to_s].join('|')
     end
 
     # Lowercase hex HMAC-SHA256 of the signature input under the
