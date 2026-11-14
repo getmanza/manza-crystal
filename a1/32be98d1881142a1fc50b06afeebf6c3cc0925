@@ -1,0 +1,19 @@
+spec/manza/client_spec.cr
+  s_dc417254daa132::t_4ae14a9a1d01ac 101-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a132be98d1881142a1fc50b06afeebf6c3cc0925",
+  "prompts": {},
+  "sessions": {
+    "s_dc417254daa132": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ea9c3c4-d3a6-4c56-8e33-bcc56843e7e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
