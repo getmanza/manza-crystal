@@ -340,7 +340,7 @@ describe TransferAuthorizer::Preflight do
     end
   end
 
-  it "warns that a new payee needs the toggle, which the API does not show" do
+  it "warns that a new payee needs the toggle (trust_new_payees on transfer_authorizer.get)" do
     with_setup do |s|
       s.payee["trusted"] = false
       ok, output = s.run

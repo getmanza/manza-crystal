@@ -8,18 +8,25 @@ module TransferAuthorizer
   #
   # ```json
   # {"po_8812": {"payment_id": "...", "amount": "2500.0", "currency_code": "MAD",
-  #              "account_id": "...", "payee": "ext:..."}}
+  #              "account_id": "...", "payee": "ext:...", "transfer_method": "standard"}}
   # ```
+  #
+  # `transfer_method` is left out of an entry when the payment has none
+  # (a market with no rail choice), so `entry["transfer_method"]?` reads
+  # nil for it, as it does for an entry the 1.x example wrote.
   class Ledger
     alias Entry = Hash(String, String)
 
     def initialize(@path : String)
     end
 
+    # `transfer_method` is the create response's (nil where the market
+    # offers no choice): the v2 signature signs it.
     def record(client_reference : String, payment_id : String, amount : String, currency_code : String,
-               account_id : String, payee : String) : Entry
+               account_id : String, payee : String, transfer_method : String?) : Entry
       entry = {"payment_id" => payment_id, "amount" => amount, "currency_code" => currency_code,
                "account_id" => account_id, "payee" => payee}
+      entry["transfer_method"] = transfer_method if transfer_method
 
       # Serialize writers on a separate lock file, write the new ledger to a
       # temporary file and rename it over the old one: a reader sees the old

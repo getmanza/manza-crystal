@@ -47,6 +47,97 @@ describe "Invoices" do
       client.invoices.get(fixture_id("MANZA_FIXTURE_INVOICE_ID"))
     end
   end
+
+  # Fixed dates keep the recorded body stable (see manza-ruby's
+  # invoices_spec.rb for why staging needs these ones).
+  it "creates an invoice paid into the account, asking for a payment link" do
+    with_replay("invoices/create") do |client|
+      response = client.invoices.create(
+        customer_id: fixture_id("MANZA_FIXTURE_CUSTOMER_ID"),
+        account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
+        currency_code: "MAD",
+        issue_date: "2026-11-14",
+        due_date: "2026-12-14",
+        generate_payment_link: true,
+        items: [
+          {description: "SDK fixture line", quantity: 1, unit_price: "100.00"},
+        ]
+      )
+      response.status.should eq(201)
+      response.body["id"].as_s?.should_not be_nil
+      response.body["generate_payment_link"].as_bool?.should be_true
+      response.body["account"]["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_ACCOUNT_ID"))
+    end
+  end
+
+  # An invoice is paid into one of the entity's accounts: a create without
+  # one is refused as not approvable (`type` "state_error"). An account_id
+  # that is not the entity's is refused with `param` "account_id".
+  it "raises a validation error when created without an account_id" do
+    with_replay("invoices/create_without_account") do |client|
+      error = expect_raises(Manza::Error) do
+        client.invoices.create(
+          customer_id: fixture_id("MANZA_FIXTURE_CUSTOMER_ID"),
+          currency_code: "MAD",
+          issue_date: "2026-05-03",
+          due_date: "2026-06-03",
+          items: [
+            {description: "SDK fixture line", quantity: 1, unit_price: "100.00"},
+          ]
+        )
+      end
+      error.status.should eq(422)
+      error.kind.should eq("validation")
+      error.type.should eq("state_error")
+      # The account refusal, not a date one (also state_error).
+      error.param.should be_nil
+      error.message.to_s.should match(/compte bancaire|bank account/i)
+    end
+  end
+
+  # Only a boolean (or "true"/"false"/"1"/"0") is taken: any other text
+  # is refused before anything is created.
+  it "raises a 400 validation error on a non-boolean generate_payment_link" do
+    with_replay("invoices/create_invalid_generate_payment_link") do |client|
+      error = expect_raises(Manza::Error) do
+        client.invoices.create(
+          customer_id: fixture_id("MANZA_FIXTURE_CUSTOMER_ID"),
+          account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
+          currency_code: "MAD",
+          issue_date: "2026-05-03",
+          due_date: "2026-06-03",
+          generate_payment_link: "yes please",
+          items: [
+            {description: "SDK fixture line", quantity: 1, unit_price: "100.00"},
+          ]
+        )
+      end
+      error.status.should eq(400)
+      error.kind.should eq("validation")
+      error.message.to_s.should contain("generate_payment_link")
+    end
+  end
+
+  it "updates an invoice's account, notes and payment link" do
+    with_replay("invoices/update") do |client|
+      response = client.invoices.update(
+        fixture_id("MANZA_FIXTURE_INVOICE_ID"),
+        account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
+        notes: "updated by SDK fixture spec",
+        generate_payment_link: true
+      )
+      response.status.should eq(200)
+      response.body["notes"].as_s?.should eq("updated by SDK fixture spec")
+      response.body["generate_payment_link"].as_bool?.should be_true
+      response.body["account"]["id"].as_s?.should eq(fixture_id("MANZA_FIXTURE_ACCOUNT_ID"))
+    end
+  end
+
+  it "has no create_payment_link: generate_payment_link on create or update replaced it" do
+    client = Manza::Client.new(api_key: "test", base_url: "http://127.0.0.1:1")
+
+    client.invoices.responds_to?(:create_payment_link).should be_false
+  end
 end
 
 describe "PaymentLinks" do
@@ -105,7 +196,7 @@ describe "WebhookEndpoints" do
 end
 
 describe "Payments" do
-  it "creates a draft carrying the client_reference" do
+  it "creates a draft carrying the client_reference and the transfer_method" do
     with_replay("payments/create") do |client|
       response = client.payments.create(
         account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
@@ -113,12 +204,14 @@ describe "Payments" do
         amount: "10.00",
         payment_reference: "SDK fixture",
         internal_notes: "[zazu-ruby-fixture] create spec - do not approve",
-        client_reference: fixture_id("MANZA_FIXTURE_CLIENT_REFERENCE")
+        client_reference: fixture_id("MANZA_FIXTURE_CLIENT_REFERENCE"),
+        transfer_method: "standard"
       )
       response.status.should eq(201)
       # Awaiting approval — the API never executes a transfer itself.
       response.body["status"].as_s?.should eq("requested")
       response.body["client_reference"].as_s?.should eq(fixture_id("MANZA_FIXTURE_CLIENT_REFERENCE"))
+      response.body["transfer_method"].as_s?.should eq("standard")
       # Inside the envelope: the challenge went to the authorizer.
       response.body["authorization"]["status"].as_s?.should eq("pending")
       response.body["transfer"].raw.should be_nil
@@ -139,6 +232,22 @@ describe "Payments" do
       error.kind.should eq("conflict")
       error.type.should eq("duplicate_client_reference")
       error.payment_id.should eq(fixture_id("MANZA_FIXTURE_AUTHORIZABLE_DRAFT_ID"))
+    end
+  end
+
+  it "raises a validation error on transfer_method when the market does not offer it" do
+    with_replay("payments/create_invalid_transfer_method") do |client|
+      error = expect_raises(Manza::Error) do
+        client.payments.create(
+          account_id: fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
+          beneficiary_id: fixture_id("MANZA_FIXTURE_BENEFICIARY_ID"),
+          amount: "10.00",
+          transfer_method: "carrier_pigeon"
+        )
+      end
+      error.status.should eq(422)
+      error.kind.should eq("validation")
+      error.param.should eq("transfer_method")
     end
   end
 
@@ -200,6 +309,10 @@ describe "Payments" do
     end
   end
 
+  # The seeded drafts send `transfer_method: "standard"` (MA's base rail,
+  # always offered), so the v2 input signs that rail. The recorded
+  # signature is scrubbed, so these cassettes match without it; the shared
+  # vectors in transfer_authorization_spec.cr prove the v2 input.
   it "authorizes (executes) a draft" do
     with_replay("payments/authorize", ignore_signature: true) do |client|
       draft_id = fixture_id("MANZA_FIXTURE_AUTHORIZABLE_DRAFT_ID")
@@ -212,7 +325,8 @@ describe "Payments" do
         Manza::TransferAuthorization.payee_for(
           external_account_id: fixture_id("MANZA_FIXTURE_TRUSTED_EXTERNAL_ACCOUNT_ID")
         ),
-        fixture_id("MANZA_FIXTURE_AUTHORIZABLE_CLIENT_REFERENCE")
+        fixture_id("MANZA_FIXTURE_AUTHORIZABLE_CLIENT_REFERENCE"),
+        transfer_method: "standard"
       )
 
       response = client.payments.authorize(
@@ -238,7 +352,8 @@ describe "Payments" do
         "MAD",
         fixture_id("MANZA_FIXTURE_ACCOUNT_ID"),
         Manza::TransferAuthorization.payee_for(external_account_id: fixture_id("MANZA_FIXTURE_EXTERNAL_ACCOUNT_ID")),
-        fixture_id("MANZA_FIXTURE_NEW_PAYEE_CLIENT_REFERENCE")
+        fixture_id("MANZA_FIXTURE_NEW_PAYEE_CLIENT_REFERENCE"),
+        transfer_method: "standard"
       )
 
       response = client.payments.authorize(
@@ -296,6 +411,9 @@ describe "TransferAuthorizer" do
       %w[per_transfer_limit daily_limit daily_authorized_total secret_expires_at webhook_endpoint_id enrolled_at].each do |key|
         response.body.as_h.has_key?(key).should be_true
       end
+      # "Approve transfers to new payees" is on for the fixture entity.
+      response.body["trust_new_payees"].as_bool?.should be_true
+      response.body["new_payee_limit"].as_s?.should_not be_nil
     end
   end
 

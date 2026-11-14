@@ -28,9 +28,22 @@ draft = client.payments.create(
   beneficiary_id: beneficiary_id,
   amount: "150.00",
   payment_reference: "INV-000042",
-  client_reference: "po_1042" # unique per entity; a duplicate raises Manza::ConflictError
+  client_reference: "po_1042", # unique per entity; a duplicate raises Manza::ConflictError
+  transfer_method: "standard"  # optional rail: eft/rtc (ZA), standard/instant (MA); omitted → the default
 )
 # client.transfer_drafts is a deprecated alias of client.payments (same methods, /api/payments)
+
+# Invoice paid into one of your accounts, with a card payment link made on approval.
+invoice = client.invoices.create(
+  customer_id: customer_id,
+  account_id: account_id,      # required: the account the invoice is paid into
+  currency_code: "MAD",
+  issue_date: "2026-11-14",
+  due_date: "2026-12-14",
+  generate_payment_link: true, # needs payment_links:write and payment links enabled for the entity
+  items: [{description: "Consulting", quantity: 10, unit_price: "150.00"}]
+)
+client.invoices.update(invoice.body["id"].as_s, account_id: account_id, generate_payment_link: false)
 
 # Save a recipient and its bank account, then ask for the payee to be trusted.
 beneficiary = client.beneficiaries.create(beneficiary_type: "business", company_name: "Acme SARL")
@@ -70,8 +83,8 @@ whole flow. The guide is the
    client.payee_trust_requests.create(["01a1..."])
    ```
 
-   `trusted` on `client.beneficiaries.get_external_account` says which it is. The API does not show whether the option is on.
-7. **Run the preflight, then the example** (from `examples/transfer_authorizer/`, after filling in `.env`): `crystal run preflight.cr` checks what the API shows of steps 1–6 and prints a fix for each that fails. What it cannot see, check by hand: that key B is bound to an IP allowlist, and, for a payee not trusted yet, that *Approve transfers to new payees* is on and key A is bound to an IP allowlist too (it warns, it does not fail). Then `crystal run server.cr` in one terminal, `crystal run create_transfer.cr` in another.
+   `trusted` on `client.beneficiaries.get_external_account` says which it is. `trust_new_payees` on `client.transfer_authorizer.get` says whether the option is on, and `new_payee_limit` gives its limit per transfer.
+7. **Run the preflight, then the example** (from `examples/transfer_authorizer/`, after filling in `.env`): `crystal run preflight.cr` checks what the API shows of steps 1–6 and prints a fix for each that fails. What it cannot see, check by hand: that key B is bound to an IP allowlist, and, for a payee not trusted yet, that *Approve transfers to new payees* is on (`trust_new_payees` on `client.transfer_authorizer.get`) and key A is bound to an IP allowlist too (it warns, it does not fail). Then `crystal run server.cr` in one terminal, `crystal run create_transfer.cr` in another.
 8. **Troubleshooting**: a draft that goes to your approvers instead has an `authorization` with status `refused` and a `refusal_reason` (`create_transfer.cr` prints it in words); `client.transfer_authorizer.get` shows a suspension and its `suspension_reason`. An authorize answered 409 `authorization_busy` (a bank-detail edit, trust or trust revocation on the same payee was in flight) is safe to retry. The reasons, and an API error's `type`, are in the [transfer authorization docs](https://ma.manza.finance/docs/api/transfer-authorization).
 
 ### Verifying the webhook
@@ -104,7 +117,12 @@ can replay it.
 ### Signing the challenge
 
 Sign the draft from **your own record** of it with the endpoint's
-signing secret:
+signing secret. The SDK builds the v2 input
+(`manza.transfer-authorization.v2`), which ends with the payment's
+`transfer_method` (an empty segment when it is `null`); compare it with
+the webhook's `signature_input_v2`. The webhook's `signature_input` is the
+v1 string, verified only for clients pinned to `Manza-Version:
+2026-03-27`: those stay on manza-crystal 1.x.
 
 ```crystal
 # draft: your own record of the draft, e.g. the JSON::Any body of the
@@ -115,7 +133,8 @@ input = Manza::TransferAuthorization.signature_input(
   draft["amount"].as_s, # the API's decimal string verbatim, e.g. "2500.0"
   draft["currency_code"].as_s, draft["account_id"].as_s,
   Manza::TransferAuthorization.payee_for(external_account_id: draft["external_account_id"].as_s),
-  draft["client_reference"].as_s? # optional
+  draft["client_reference"].as_s?, # optional
+  transfer_method: draft["transfer_method"].as_s? # required; nil signs as ""
 )
 signature = Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
@@ -158,7 +177,11 @@ Non-2xx responses raise `Manza::Error` with `status`, `kind`
 `request_id`, and `retry_after` for 429s. 400 and 422 are both
 `validation`. 409 raises `Manza::ConflictError` (`kind` `conflict`), which
 adds `payment_id` — for a duplicate `client_reference`, the draft that
-already holds it. Transport failures raise
+already holds it. A 422 whose `type` is `plan_limit_reached` raises
+`Manza::PlanLimitReachedError` (`kind` `validation`), which adds
+`limit_kind` (what the plan caps, e.g. `invoices`: the API's
+`error.kind`), `current` and `max`; retrying does not help until the plan
+changes or the period rolls over. Transport failures raise
 `Manza::ConnectionError`; a client misconfiguration (missing API key)
 raises `Manza::ConfigurationError`.
 
@@ -171,9 +194,14 @@ raises `Manza::ConfigurationError`.
 | `api_version` (Manza-Version header) | `MANZA_API_VERSION` | unset |
 | `timeout` | — | 30 seconds |
 
+Unpinned, the API answers with its current version. manza-crystal 2.x
+signs transfer authorizations v2, which the API verifies for unpinned
+requests and requests pinned to `2026-11-13` or later; a client pinned to
+`2026-03-27` must stay on manza-crystal 1.x.
+
 The pre-1.0 `ZAZU_API_KEY`, `ZAZU_BASE_URL` and `ZAZU_API_VERSION` are still
 read when the `MANZA_*` name is unset, with a one-time deprecation warning on
-stderr, for all of 1.x.
+stderr, until a later major release (2.0 keeps them).
 
 Production is `https://ma.manza.finance` (Morocco); for South Africa
 pass `base_url: "https://za.manza.finance"`. The cassettes are recorded

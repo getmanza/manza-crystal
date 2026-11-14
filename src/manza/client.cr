@@ -26,7 +26,7 @@ module Manza
     getter transfer_authorizer : Resources::TransferAuthorizer { Resources::TransferAuthorizer.new(self) }
     getter webhook_endpoints : Resources::WebhookEndpoints { Resources::WebhookEndpoints.new(self) }
 
-    # Deprecated alias of `#payments`, kept for all of 1.x: returns the
+    # Deprecated alias of `#payments`, kept until a later major: returns the
     # same resource, which calls `/api/payments`.
     @[Deprecated("Use `#payments` instead.")]
     def transfer_drafts : Resources::Payments

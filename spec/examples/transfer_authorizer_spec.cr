@@ -3,7 +3,8 @@ require "../../examples/transfer_authorizer/src/authorizer"
 
 # Drives the example's authorizer with a signed copy of the documented
 # `payment.authorization_requested` payload (the same one manza-ruby's
-# spec/examples/transfer_authorizer_spec.rb uses), against a RouteStub
+# spec/examples/transfer_authorizer_spec.rb uses, with v2's
+# `signature_input_v2` and `payment.transfer_method`), against a RouteStub
 # standing in for the API. No cassette: these are not SDK resources.
 module TransferAuthorizerSpec
   extend self
@@ -17,13 +18,17 @@ module TransferAuthorizerSpec
   SIGNATURE_INPUT  = "manza.transfer-authorization.v1|01958e51-7c5a-7000-8000-000000000012|" \
                      "9f86d081884c7d659a2feaa0c55ad015|2500.0|ZAR|01958e51-7c5a-7000-8000-000000000013|" \
                      "ext:01958e51-7c5a-7000-8000-000000000014|po_8812"
+  SIGNATURE_INPUT_V2 = "manza.transfer-authorization.v2|01958e51-7c5a-7000-8000-000000000012|" \
+                       "9f86d081884c7d659a2feaa0c55ad015|2500.0|ZAR|01958e51-7c5a-7000-8000-000000000013|" \
+                       "ext:01958e51-7c5a-7000-8000-000000000014|po_8812|eft"
 
   LEDGER_ENTRY = {
-    payment_id:    DRAFT_ID,
-    amount:        "2500.0",
-    currency_code: "ZAR",
-    account_id:    "01958e51-7c5a-7000-8000-000000000013",
-    payee:         "ext:01958e51-7c5a-7000-8000-000000000014",
+    payment_id:      DRAFT_ID,
+    amount:          "2500.0",
+    currency_code:   "ZAR",
+    account_id:      "01958e51-7c5a-7000-8000-000000000013",
+    payee:           "ext:01958e51-7c5a-7000-8000-000000000014",
+    transfer_method: "eft",
   }
 
   def payload : Hash(String, JSON::Any)
@@ -50,9 +55,11 @@ module TransferAuthorizerSpec
             "destination_account_id": null,
             "payment_reference": "INV-2026-001",
             "client_reference": "po_8812",
+            "transfer_method": "eft",
             "payee_trusted": false
           },
-          "signature_input": "#{SIGNATURE_INPUT}"
+          "signature_input": "#{SIGNATURE_INPUT}",
+          "signature_input_v2": "#{SIGNATURE_INPUT_V2}"
         }
       }
       JSON
@@ -66,12 +73,15 @@ module TransferAuthorizerSpec
     event.to_json
   end
 
-  def expected_signature : String
-    input = Manza::TransferAuthorization.signature_input(
+  def expected_input : String
+    Manza::TransferAuthorization.signature_input(
       LEDGER_ENTRY[:payment_id], NONCE, LEDGER_ENTRY[:amount], LEDGER_ENTRY[:currency_code],
-      LEDGER_ENTRY[:account_id], LEDGER_ENTRY[:payee], "po_8812"
+      LEDGER_ENTRY[:account_id], LEDGER_ENTRY[:payee], "po_8812", transfer_method: LEDGER_ENTRY[:transfer_method]
     )
-    Manza::TransferAuthorization.sign(SECRET, input)
+  end
+
+  def expected_signature : String
+    Manza::TransferAuthorization.sign(SECRET, expected_input)
   end
 
   def ok(body : String = %({"status":"processing"})) : RouteStub::Reply
@@ -99,8 +109,8 @@ module TransferAuthorizerSpec
       )
     end
 
-    def record(amount : String = LEDGER_ENTRY[:amount]) : Nil
-      @ledger.record("po_8812", **LEDGER_ENTRY.merge(amount: amount))
+    def record(amount : String = LEDGER_ENTRY[:amount], transfer_method : String? = LEDGER_ENTRY[:transfer_method]) : Nil
+      @ledger.record("po_8812", **LEDGER_ENTRY.merge(amount: amount, transfer_method: transfer_method))
     end
 
     # POSTs `body` to the handler through a built HTTP::Server::Context and
@@ -175,17 +185,21 @@ describe TransferAuthorizer::App do
       end
     end
 
-    it "logs both signature inputs and does not authorize when the webhook's differs from the ledger's" do
+    it "signs the webhook's v2 input" do
+      expected_input.should eq(SIGNATURE_INPUT_V2)
+    end
+
+    it "logs both signature inputs and does not authorize when the webhook's v2 input differs from the ledger's" do
       with_harness do |h|
         h.record
         event = TransferAuthorizerSpec.payload
-        event["data"].as_h["signature_input"] = JSON::Any.new("something-else")
+        event["data"].as_h["signature_input_v2"] = JSON::Any.new("something-else")
 
         h.deliver(event.to_json)
 
         h.stub.requests.should be_empty
         h.log.to_s.should contain("something-else")
-        h.log.to_s.should contain(SIGNATURE_INPUT)
+        h.log.to_s.should contain(SIGNATURE_INPUT_V2)
       end
     end
 
@@ -331,6 +345,24 @@ describe TransferAuthorizer::App do
         body["reason"].as_s.should contain("amount")
         h.stub.requests_to("POST", AUTHORIZE).should be_empty
         h.log.to_s.should contain("declined")
+      end
+    end
+  end
+
+  describe "with a transfer_method that differs from the ledger's" do
+    it "declines with a reason naming transfer_method" do
+      with_harness do |h|
+        h.record(transfer_method: "rtc")
+        h.stub.on("POST", DECLINE, ok(%({"id":"#{AUTHORIZATION_ID}","status":"declined"})))
+
+        h.deliver_example.should eq(200)
+
+        declines = h.stub.requests_to("POST", DECLINE)
+        declines.size.should eq(1)
+        body = JSON.parse(declines.first.body)
+        body["authorization_id"].should eq(AUTHORIZATION_ID)
+        body["reason"].as_s.should contain("transfer_method")
+        h.stub.requests_to("POST", AUTHORIZE).should be_empty
       end
     end
   end

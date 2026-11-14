@@ -41,7 +41,7 @@ manza.beneficiaries.create_external_account(beneficiary_id, account_number: "012
 manza.payee_trust_requests.create([external_account_id])
 
 # Signer for machine-authorized transfers (pure functions, no HTTP)
-input = Manza::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference)
+input = Manza::TransferAuthorization.signature_input(payment_id, nonce, amount, currency_code, account_id, payee, client_reference, transfer_method: transfer_method) # v2; transfer_method required, nil allowed
 Manza::TransferAuthorization.sign(signing_secret, input) # lowercase hex HMAC-SHA256
 
 # Webhook verifier (pure functions, no HTTP); `construct_event` raises Manza::ArgumentError, `verify?` returns false
@@ -60,7 +60,7 @@ end
 - Resources on `Manza::Client`: `accounts`, `beneficiaries`, `checkout_sessions`, `customers`, `entity`, `invoices`, `payee_trust_requests`, `payment_links`, `payments`, `transfer_authorizer`, `webhook_endpoints` (plus the deprecated `transfer_drafts` alias of `payments`)
 - `examples/transfer_authorizer/` is a runnable port of manza-ruby's example (creator, authorizer server, preflight), specced in `spec/examples/` against `RouteStub` (`spec/support/route_stub.cr`), not cassettes: it drives several endpoints with non-recorded responses. It requires `../../src/manza`; nothing under `src/` requires it
 - `Manza::Page` is cursor-based pagination (`data`, `has_more`, `next_cursor`, `#next`), hard cap of 100 per page (`MAX_PER_PAGE`)
-- Error model: one `Manza::Error` carrying a `kind` (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`, `rate_limit`, `server`, `api`) plus `status`, `type`, `param`, `request_id`, `retry_after`, `body`. Match on `kind`, never on status codes or message text. `Manza::ConflictError < Manza::Error` (409) adds `payment_id`. `Manza::ArgumentError`, `Manza::ConfigurationError` and `Manza::ConnectionError` cover local misuse and transport failures
+- Error model: one `Manza::Error` carrying a `kind` (`authentication`, `forbidden`, `not_found`, `validation`, `conflict`, `rate_limit`, `server`, `api`) plus `status`, `type`, `param`, `request_id`, `retry_after`, `body`. Match on `kind`, never on status codes or message text. `Manza::ConflictError < Manza::Error` (409) adds `payment_id`. `Manza::PlanLimitReachedError < Manza::Error` (422 `type` `plan_limit_reached`, `kind` `validation`, since 2.0) adds `limit_kind` (the API's `error.kind`, renamed because `kind` is the category), `current`, `max`. `Manza::ArgumentError`, `Manza::ConfigurationError` and `Manza::ConnectionError` cover local misuse and transport failures
 - Response bodies are `Manza::Response#body` (`JSON::Any`, snake_case, as-is). **No typed models, no auto-camelCasing.**
 
 ## How to work in this codebase
@@ -74,19 +74,19 @@ end
 
 - **Never call a live Manza API** from specs, scripts or Claude sessions. Specs replay manza-ruby's cassettes only. Live staging calls create real transfers and approval requests for the team. Only manza-ruby records cassettes.
 - **Cassette contract.**
-  - Cassettes come from the manza-ruby release pinned in `scripts/fetch-cassettes.sh` (`PINNED_TAG`, currently `v1.3.0`; `cassettes-vX.Y.Z.tar.gz`) via that script into `spec/fixtures/cassettes/` (gitignored).
+  - Cassettes come from the manza-ruby release pinned in `scripts/fetch-cassettes.sh` (`PINNED_TAG`, currently `v2.0.0`; `cassettes-vX.Y.Z.tar.gz`) via that script into `spec/fixtures/cassettes/` (gitignored).
   - They are recorded against `https://ma.manza.dev`. `ReplayServer` raises if a cassette's host differs.
   - Load one cassette per spec: `payments/authorize` vs `authorize_same_key`, and `create` vs `create_duplicate`, share method + URI and the lookup is first-match.
   - The four authorize cassettes (`payments/authorize`, `authorize_same_key`, `authorize_bad_signature`, `authorize_new_payee`) use `with_replay(..., ignore_signature: true)`: the body is compared minus `signature`.
   - Every other body is compared semantically: method, path + query (host ignored, query order ignored), and JSON parsed on both sides so key order never matters (byte-for-byte when not JSON).
   - The replay server does not replay recorded response headers, so cassette responses carry no `Content-Length`.
   - The `FIXTURE_IDS` table in `spec/support/fixture_ids.cr` must stay identical to manza-ruby's `spec/support/fixture_ids.rb`.
-- **Hosts.** Default `https://ma.manza.finance`, South Africa `https://za.manza.finance`, staging and cassettes `https://ma.manza.dev`. Env vars are `MANZA_API_KEY`, `MANZA_BASE_URL`, `MANZA_API_VERSION`; the pre-1.0 `ZAZU_*` names are read as a fallback for all of 1.x and warn once (`Manza::Env`). Version header is `Manza-Version`, User-Agent `manza-crystal/<version>`.
-- **A replay mismatch is fixed in the SDK, never in the cassette.** "no cassette interaction matches" means the request drifted from the recording (or two cassettes sharing method + URI were loaded in one spec). Never edit a cassette or the matcher to pass, and never record here. A spec that needs a newer cassette waits on a manza-ruby release plus a deliberate `PINNED_TAG` bump. A fetch 404 means that tag has no tarball yet: re-run later or try `scripts/fetch-cassettes.sh v1.0.1`.
+- **Hosts.** Default `https://ma.manza.finance`, South Africa `https://za.manza.finance`, staging and cassettes `https://ma.manza.dev`. Env vars are `MANZA_API_KEY`, `MANZA_BASE_URL`, `MANZA_API_VERSION`; the pre-1.0 `ZAZU_*` names are read as a fallback (kept in 2.0, until a later major) and warn once (`Manza::Env`). Version header is `Manza-Version`, User-Agent `manza-crystal/<version>`.
+- **A replay mismatch is fixed in the SDK, never in the cassette.** "no cassette interaction matches" means the request drifted from the recording (or two cassettes sharing method + URI were loaded in one spec). Never edit a cassette or the matcher to pass, and never record here. A spec that needs a newer cassette waits on a manza-ruby release plus a deliberate `PINNED_TAG` bump. A fetch 404 means that tag has no tarball yet: re-run later. An older tag is no fallback: its cassettes predate the specs (v1.x lacks the 2.0 interactions).
 - **A public API break is deliberate**: named in the changelog and released as a major.
 - **Never skip or weaken `crystal tool format --check`**, and never hand-edit `bin/release` or push a tag by hand (the `release.yml` gate fails when tag, `shard.yml` and `Manza::VERSION` differ).
-- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. `ConflictError` is the 10th error class (409).
-- **Signer.** `Manza::TransferAuthorization` must keep reproducing the two fixed vectors from manza-ruby's `spec/manza/transfer_authorization_spec.rb` (see `spec/manza/transfer_authorization_spec.cr`). Build the signature input from your own record of the draft, never sign the server's `signature_input` blindly.
+- **Error model is shared across the SDK family.** Adding an error class or `kind` means coordinating manza-ruby and manza-ts at minimum. `ConflictError` is the 10th error class (409), `PlanLimitReachedError` the 11th (422 `plan_limit_reached`).
+- **Signer.** `Manza::TransferAuthorization` must keep reproducing the three fixed v2 vectors from manza-ruby's `spec/manza/transfer_authorization_spec.rb` (see `spec/manza/transfer_authorization_spec.cr`). It signs v2 only (`manza.transfer-authorization.v2`, `transfer_method` last); clients pinned to `Manza-Version: 2026-03-27` stay on 1.x. Build the signature input from your own record of the draft, never sign the server's `signature_input_v2` blindly.
 - **Release.** `bin/release` is byte-identical across the SDK repos and is never edited in place. Repo-specific logic lives in `scripts/version` (shard.yml + `Manza::VERSION` in `src/manza.cr`) and `scripts/release-check` (shards install, fetch cassettes, format check, spec). `release.yml` gates on tag == `shard.yml` version == `Manza::VERSION`. There is no registry and no publish token: shards install from git tags, "publishing" is the tag plus the GitHub release (`GITHUB_TOKEN`, `contents: write`). Consumers depend on `github: getmanza/manza-crystal`.
 - **Repo renamed `zazu-crystal` -> `manza-crystal` (org `getmanza`).** Remotes and URLs must say `getmanza/manza-crystal`.
 - **CI installs Crystal after `sudo apt-get update -q`.** `crystal-lang/install-crystal` can 404 on a stale apt index; keep that step in `ci.yml` and `release.yml`.
@@ -166,7 +166,7 @@ Exact commands from `.github/workflows/ci.yml`:
 ```bash
 # One-time setup
 shards install                    # no dependencies today; release-check runs it too
-scripts/fetch-cassettes.sh        # the pinned tag; or scripts/fetch-cassettes.sh v1.0.1, or `latest`
+scripts/fetch-cassettes.sh        # the pinned tag; or scripts/fetch-cassettes.sh v2.0.0, or `latest`
 
 # Daily loop
 crystal spec spec/manza/resources_spec.cr   # while iterating

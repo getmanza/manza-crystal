@@ -64,6 +64,15 @@ module Manza
         return ConflictError.new(message, status, kind, error_type, param, request_id, retry_after, body, payment_id)
       end
 
+      if status == 422 && error_type == "plan_limit_reached"
+        return PlanLimitReachedError.new(
+          payload.try(&.["message"]?).try(&.as_s?) || "Plan limit reached", status, kind, error_type, param, request_id, retry_after, body,
+          limit_kind: payload.try(&.["kind"]?).try(&.as_s?),
+          current: payload.try(&.["current"]?).try(&.as_i64?),
+          max: payload.try(&.["max"]?).try(&.as_i64?)
+        )
+      end
+
       new(message, status, kind, error_type, param, request_id, retry_after, body)
     end
 
@@ -99,6 +108,29 @@ module Manza
     def initialize(message : String, status : Int32, kind : String, type : String?,
                    param : String?, request_id : String?, retry_after : Int32?, body : JSON::Any,
                    @payment_id : String? = nil)
+      super(message, status, kind, type, param, request_id, retry_after, body)
+    end
+  end
+
+  # 422 with `type` "plan_limit_reached" (`kind` "validation"): the
+  # entity's plan caps this kind of record and the cap is reached.
+  # Retrying does not help until the plan changes or the period rolls
+  # over. `#limit_kind` names what is capped (e.g. "invoices"; the API's
+  # `error.kind`, renamed because `#kind` is the error's category),
+  # `#current` the count the entity holds and `#max` the cap.
+  class PlanLimitReachedError < Error
+    # The API's `error.kind` field: what the plan caps.
+    getter limit_kind : String?
+
+    # The API's `error.current` field.
+    getter current : Int64?
+
+    # The API's `error.max` field.
+    getter max : Int64?
+
+    def initialize(message : String, status : Int32, kind : String, type : String?,
+                   param : String?, request_id : String?, retry_after : Int32?, body : JSON::Any,
+                   *, @limit_kind : String? = nil, @current : Int64? = nil, @max : Int64? = nil)
       super(message, status, kind, type, param, request_id, retry_after, body)
     end
   end

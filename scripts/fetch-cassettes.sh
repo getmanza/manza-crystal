@@ -4,7 +4,7 @@
 # into both repos.
 #
 #   scripts/fetch-cassettes.sh            # the pinned tag (PINNED_TAG below)
-#   scripts/fetch-cassettes.sh v1.0.1     # specific tag
+#   scripts/fetch-cassettes.sh v2.0.0     # specific tag
 #   scripts/fetch-cassettes.sh latest     # newest release tag
 #
 # Cassettes land under spec/fixtures/cassettes/.
@@ -16,7 +16,7 @@ DEST="$ROOT/spec/fixtures/cassettes"
 
 # Pinned so a new manza-ruby release cannot break every SDK's CI at once.
 # Bump deliberately when the cassette contract changes.
-PINNED_TAG="v1.3.0"
+PINNED_TAG="v2.0.0"
 TAG="${1:-$PINNED_TAG}"
 AUTH=()
 if [[ -n "${GH_TOKEN:-}" ]]; then
